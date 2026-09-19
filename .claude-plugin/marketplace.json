@@ -1,0 +1,22 @@
+{
+  "name": "stagetwo",
+  "owner": {
+    "name": "Stage Two",
+    "email": "info@stagetwo.nl"
+  },
+  "metadata": {
+    "description": "Plugins van Stage Two voor Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "stack",
+      "description": "De werkwijze van Stage Two in Claude Code: de vaste routes, de bewaking van de gedeelde template en de skill /stack:bijwerken.",
+      "author": {
+        "name": "Stage Two",
+        "email": "info@stagetwo.nl"
+      },
+      "homepage": "https://github.com/Stage-Two-AI/stack-plugin",
+      "source": "./"
+    }
+  ]
+}
