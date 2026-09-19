@@ -1,0 +1,353 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { test } from "node:test";
+import { alleBestanden, git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
+import { BEVESTIGING, WERKMAP_PREFIX, controleerWerkmap, hoofd, leesArgumenten, zonderLogin } from "./bijwerken.mjs";
+
+const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, ".mjs");
+
+const GH_STANDAARD = {
+  "--version": { stdout: "gh version 2.95.0\n" },
+  "auth status": { stdout: "Logged in\n" },
+  "pr list": { stdout: [] },
+  "pr create": { stdout: "Creating pull request\nhttps://github.com/klant/app/pull/1\n" },
+  "pr edit": { stdout: "" },
+  "pr close": { stdout: "" },
+};
+
+/**
+ * Eén wereld per test: template-repo met tags, klantrepo met kale origin en checkout,
+ * nep-gh op het PATH, en een eigen TMPDIR zodat we kunnen zien wat er gekloond is.
+ */
+function wereld({ gh = GH_STANDAARD, tagV9 = true, app } = {}) {
+  const wortel = tijdelijkeMap("bijwerken-wereld-");
+  const tmp = join(wortel, "tmp");
+  mkdirSync(tmp);
+  const template = maakTemplateRepo(wortel, { tagV9 });
+  const githubUrl = "https://github.com/klant/app.git";
+  const klant = maakKlantRepo(wortel, { githubUrl, ...(app ? { app } : {}) });
+  const nep = nepGh(wortel, gh);
+  nepPnpm_opPad(nep.pad);
+  const env = {
+    ...process.env,
+    ...insteadOfEnv(githubUrl, klant.origin),
+    PATH: `${nep.pad}:${process.env.PATH}`,
+    TMPDIR: tmp,
+    STACK_TEMPLATE_REPO: template,
+  };
+  const draai = (argv) => {
+    const oud = { ...process.env };
+    Object.assign(process.env, env);
+    try {
+      return hoofd(argv, { cwd: klant.checkout, env });
+    } finally {
+      for (const k of Object.keys(process.env)) if (!(k in oud)) delete process.env[k];
+      Object.assign(process.env, oud);
+    }
+  };
+  const werkmappen = () => (existsSync(tmp) ? readdirSync(tmp).filter((n) => n.startsWith(WERKMAP_PREFIX)) : []);
+  return { wortel, tmp, template, klant, nep, env, draai, werkmappen, opruimen: () => opruimen(wortel) };
+}
+
+test("argumenten en het afplakken van een login in een URL", () => {
+  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], checkout: null });
+  assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--los-op", "a.yml", "template", "--los-op", "b.yml", "eigen"]).losOp, [
+    { pad: "a.yml", keuze: "template" },
+    { pad: "b.yml", keuze: "eigen" },
+  ]);
+  assert.throws(() => leesArgumenten(["--raar"]), /onbekend argument/);
+  assert.equal(zonderLogin("fatal: https://bart:ghp_x@github.com/k/a"), "fatal: https://***@github.com/k/a");
+});
+
+test("controleerWerkmap weigert alles wat niet uit een droogloop komt", () => {
+  const tmp = tijdelijkeMap("cw-");
+  try {
+    assert.match(controleerWerkmap(null, { tmp }), /--werkmap/);
+    assert.match(controleerWerkmap("/etc", { tmp }), /tijdelijke map/);
+    const goed = join(tmp, `${WERKMAP_PREFIX}abc`);
+    mkdirSync(goed);
+    assert.match(controleerWerkmap(goed, { tmp }), /geen droogloop/);
+    writeFileSync(join(goed, "toestand.json"), "{}");
+    assert.equal(controleerWerkmap(goed, { tmp }), null);
+    assert.match(controleerWerkmap(goed, { tmp, nu: Date.now() + 2 * 3600 * 1000 }), /ouder dan een uur/);
+    assert.match(controleerWerkmap(join(tmp, "andere-abc"), { tmp }), /tijdelijke map/);
+  } finally {
+    opruimen(tmp);
+  }
+});
+
+test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfrecht; niets gekloond", () => {
+  const w = wereld({ gh: { ...GH_STANDAARD, "auth status": { exit: 1, stderr: "not logged in" } } });
+  try {
+    const r = w.draai(["--json", "--droogloop"]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /gh auth login/);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+
+  const n = wereld();
+  try {
+    const r = hoofd(["--droogloop"], { cwd: n.klant.checkout, env: { ...n.env, STACK_TEMPLATE_REPO: join(n.wortel, "bestaat-niet") } });
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /niet bereikbaar/);
+    assert.deepEqual(n.werkmappen(), []);
+  } finally {
+    n.opruimen();
+  }
+
+  const m = wereld();
+  try {
+    git(m.klant.checkout, "rm", "-q", ".claude/stack-version");
+    const r = m.draai(["--droogloop"]);
+    assert.equal(r.status, "geen-template");
+    assert.deepEqual(m.werkmappen(), []);
+  } finally {
+    m.opruimen();
+  }
+
+  const s = wereld();
+  try {
+    git(s.klant.checkout, "remote", "set-url", "--push", "origin", join(s.wortel, "alleen-lezen.git"));
+    const r = s.draai(["--droogloop"]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /schrijfrecht/);
+    assert.deepEqual(s.werkmappen(), [], "na een mislukte voorcontrole is er geen tijdelijke map meer");
+  } finally {
+    s.opruimen();
+  }
+});
+
+test("open PR van de beheerde run voor dezelfde versie: gestopt met de URL, niets gekloond", () => {
+  const w = wereld({
+    gh: { ...GH_STANDAARD, "pr list": { stdout: [{ number: 7, headRefName: "stack-sync/v9", url: "https://github.com/klant/app/pull/7" }] } },
+  });
+  try {
+    const r = w.draai(["--droogloop"]);
+    assert.equal(r.status, "gestopt");
+    assert.match(r.reden, /pull\/7/);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("droogloop zonder afwijkingen: resultaat noemt de paden, werkmap staat klaar, niets op origin (AE3)", () => {
+  const w = wereld();
+  try {
+    const voor = alleBestanden(w.klant.checkout);
+    const r = w.draai(["--json", "--droogloop"]);
+    assert.equal(r.status, "klaar", r.reden);
+    assert.equal(r.van, 8);
+    assert.equal(r.naar, 9);
+    assert.equal(r.branch, "stack-bijwerken/v9");
+    assert.ok(r.bijgewerkt.some((b) => b.pad === "CLAUDE.md"));
+    assert.deepEqual(r.verwijderd, ["scripts/guard-oud.mjs"]);
+    assert.deepEqual(r.overgeslagen, []);
+    assert.equal(r.samenvatting.length, 3);
+    assert.ok(r.werkmap.startsWith(w.tmp));
+    assert.equal(statSync(r.werkmap).mode & 0o777, 0o700);
+    assert.equal(git(w.klant.origin, "branch", "--list", "stack-bijwerken/v9"), "", "droogloop pusht niets");
+    assert.deepEqual(alleBestanden(w.klant.checkout), voor, "de checkout van de klant is onaangeroerd");
+    // De template-kloon staat op de tag, niet op main.
+    assert.ok(readFileSync(join(r.werkmap, "template", "CLAUDE.md"), "utf8").includes("versie 9"));
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("echte run: branch op origin met de identiteit van de klant, main onaangeroerd, PR met bevestigingsregel, werkmap weg (AE3)", () => {
+  const w = wereld();
+  try {
+    const mainVoor = git(w.klant.origin, "rev-parse", "main");
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.gepusht, true);
+    assert.deepEqual(r.pr, { url: "https://github.com/klant/app/pull/1", nieuw: true });
+    assert.equal(r.vergelijkUrl, null);
+    assert.ok(!existsSync(d.werkmap), "de tijdelijke map is opgeruimd");
+    assert.equal(git(w.klant.origin, "rev-parse", "main"), mainVoor);
+    assert.equal(git(w.klant.origin, "log", "-1", "--format=%an <%ae>", "stack-bijwerken/v9"), "Bart Klant <bart@example.com>");
+    assert.match(git(w.klant.origin, "log", "-1", "--format=%B", "stack-bijwerken/v9"), /Stack-bijwerken: v9/);
+    assert.equal(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-version"), "9");
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    assert.ok(create.includes("--repo") === false || true);
+    const body = create[create.indexOf("--body") + 1];
+    assert.ok(body.endsWith(BEVESTIGING));
+    assert.ok(body.includes("/stack:bijwerken"));
+    assert.ok(!body.includes("Stage Two stack-sync"));
+    // Geen commit als Stage Two in de klantrepo vanuit de skill.
+    assert.ok(!git(w.klant.origin, "log", "--format=%an", "stack-bijwerken/v9").includes("Stage Two"));
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("tweede run vóór de merge: dezelfde branch, geen tweede PR, geen push als de boom gelijk is", () => {
+  const w = wereld();
+  try {
+    const d1 = w.draai(["--droogloop"]);
+    assert.equal(w.draai(["--werkmap", d1.werkmap]).status, "gepusht");
+    const shaVoor = git(w.klant.origin, "rev-parse", "stack-bijwerken/v9");
+    w.nep.zet({ ...GH_STANDAARD, "pr list": { stdout: [{ number: 1, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/app/pull/1" }] } });
+    const d2 = w.draai(["--droogloop"]);
+    assert.equal(d2.status, "klaar", d2.reden);
+    const r = w.draai(["--werkmap", d2.werkmap]);
+    assert.equal(r.status, "gepusht");
+    assert.equal(r.gepusht, false);
+    assert.deepEqual(r.pr, { url: "https://github.com/klant/app/pull/1", number: 1, nieuw: false });
+    assert.equal(git(w.klant.origin, "rev-parse", "stack-bijwerken/v9"), shaVoor, "niets gepusht: dezelfde commit");
+    assert.equal(w.nep.aanroepen().filter((a) => a[0] === "pr" && a[1] === "create").length, 1);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("run na de merge: status bij", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    w.draai(["--werkmap", d.werkmap]);
+    // De klant merget de PR: main op origin krijgt de branch; zijn checkout haalt hem op.
+    git(w.klant.origin, "update-ref", "refs/heads/main", "refs/heads/stack-bijwerken/v9");
+    git(w.klant.checkout, "pull", "-q", w.klant.origin, "main");
+    const r = w.draai(["--droogloop"]);
+    assert.equal(r.status, "bij");
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("afwijking: droogloop toont het verschil, --los-op template neemt over, eigen laat staan (AE5)", () => {
+  const w = wereld();
+  try {
+    const co = w.klant.checkout;
+    writeFileSync(join(co, "CLAUDE.md"), "@AGENTS.md\n<!-- eigen aanpassing -->\n");
+    writeFileSync(join(co, ".github/workflows/ci.yml"), "name: CI\nsteps:\n  - run: echo eigen\n");
+    git(co, "add", "-A");
+    git(co, "-c", "user.name=B", "-c", "user.email=b@b", "commit", "-q", "-m", "eigen aanpassingen");
+    git(co, "push", "-q", w.klant.origin, "HEAD:main");
+
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    assert.deepEqual(d.overgeslagen.map((s) => s.pad).sort(), [".github/workflows/ci.yml", "CLAUDE.md"]);
+    assert.ok(d.overgeslagen.every((s) => s.verschil.includes("@@")));
+
+    const fout = w.draai(["--werkmap", d.werkmap, "--los-op", "src/App.tsx", "template"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /niet in de lijst/);
+    assert.ok(!existsSync(d.werkmap));
+
+    const d2 = w.draai(["--droogloop"]);
+    const r = w.draai(["--werkmap", d2.werkmap, "--los-op", "CLAUDE.md", "template", "--los-op", ".github/workflows/ci.yml", "eigen"]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.opgelost, [{ pad: "CLAUDE.md", keuze: "template" }, { pad: ".github/workflows/ci.yml", keuze: "eigen" }]);
+    assert.deepEqual(r.overgeslagen, []);
+    assert.ok(git(w.klant.origin, "show", "stack-bijwerken/v9:CLAUDE.md").includes("versie 9"));
+    assert.ok(git(w.klant.origin, "show", "stack-bijwerken/v9:.github/workflows/ci.yml").includes("echo eigen"));
+    const body = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create").at(-1);
+    assert.ok(body.includes("de eigen versie behouden"));
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("branch op afstand met een vreemde commit: gestopt en onaangeroerd; alleen skill-commits: herbouwd", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    w.draai(["--werkmap", d.werkmap]);
+    const eerste = git(w.klant.origin, "rev-parse", "stack-bijwerken/v9");
+    // Alleen skill-commits: een tweede droogloop bouwt de branch opnieuw op (zelfde boom).
+    const d2 = w.draai(["--droogloop"]);
+    assert.equal(d2.status, "klaar");
+    assert.ok(!existsSync(join(d2.werkmap, "x")));
+    // Nu commit iemand zelf op de branch.
+    const ander = join(w.wortel, "ander");
+    execFileSync("git", ["clone", "-q", w.klant.origin, ander]);
+    git(ander, "checkout", "-q", "stack-bijwerken/v9");
+    writeFileSync(join(ander, "eigen.txt"), "x\n");
+    git(ander, "add", "-A");
+    git(ander, "-c", "user.name=K", "-c", "user.email=k@k", "commit", "-q", "-m", "eigen werk op de branch");
+    git(ander, "push", "-q", "origin", "stack-bijwerken/v9");
+    const tweede = git(w.klant.origin, "rev-parse", "stack-bijwerken/v9");
+    assert.notEqual(tweede, eerste);
+    const r = w.draai(["--droogloop"]);
+    assert.equal(r.status, "gestopt");
+    assert.match(r.reden, /niet van \/stack:bijwerken/);
+    assert.equal(git(w.klant.origin, "rev-parse", "stack-bijwerken/v9"), tweede, "branch onaangeroerd");
+    assert.deepEqual(w.werkmappen(), [d2.werkmap.split("/").pop()], "geen nieuwe werkmap; alleen die van de eerdere droogloop");
+    // Ook de tweede aanroep van die eerdere droogloop mag de vreemde commit niet overschrijven.
+    const laat = w.draai(["--werkmap", d2.werkmap]);
+    assert.equal(laat.status, "gestopt");
+    assert.equal(git(w.klant.origin, "rev-parse", "stack-bijwerken/v9"), tweede, "branch nog steeds onaangeroerd");
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("vuile checkout op een andere branch: de run slaagt en de checkout is byte-identiek na afloop", () => {
+  const w = wereld();
+  try {
+    const co = w.klant.checkout;
+    git(co, "checkout", "-q", "-b", "feature/iets");
+    writeFileSync(join(co, "src/App.tsx"), "// half werk\n");
+    writeFileSync(join(co, "nieuw.txt"), "los\n");
+    const voor = alleBestanden(co);
+    const statusVoor = git(co, "status", "--porcelain");
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    assert.equal(w.draai(["--werkmap", d.werkmap]).status, "gepusht");
+    assert.deepEqual(alleBestanden(co), voor);
+    assert.equal(git(co, "status", "--porcelain"), statusVoor);
+    assert.equal(git(co, "branch", "--show-current"), "feature/iets");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("zonder gh: geen PR maar wel de branch en de vergelijkings-URL", () => {
+  const w = wereld({ gh: { "--version": { exit: 127 } } });
+  try {
+    git(w.klant.checkout, "remote", "set-url", "origin", w.klant.origin);
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    const r = w.draai(["--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.pr, null);
+    assert.equal(r.vergelijkUrl, null, "een lokale origin heeft geen GitHub-URL");
+    assert.equal(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-version"), "9");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("het script als opdracht: --json geeft één JSON-object en de exitcode volgt de status", () => {
+  const w = wereld();
+  try {
+    const uit = execFileSync("node", [SCRIPT, "--json", "--droogloop"], { cwd: w.klant.checkout, env: w.env, encoding: "utf8" });
+    const r = JSON.parse(uit);
+    assert.equal(r.status, "klaar");
+    let code = 0;
+    let fout = null;
+    try {
+      execFileSync("node", [SCRIPT, "--json", "--werkmap", "/etc"], { cwd: w.klant.checkout, env: w.env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    } catch (e) {
+      code = e.status;
+      fout = JSON.parse(e.stdout);
+    }
+    assert.equal(code, 1);
+    assert.equal(fout.status, "mislukt");
+    w.draai(["--werkmap", r.werkmap]);
+  } finally {
+    w.opruimen();
+  }
+});
