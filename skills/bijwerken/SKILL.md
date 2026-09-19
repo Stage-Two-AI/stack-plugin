@@ -30,8 +30,9 @@ Is `overgeslagen` leeg, dan is er niets te kiezen: ga meteen naar stap 3. Het ty
 
 Staat er wel iets in `overgeslagen`, dan is dat bestand van de template, maar wijkt het
 hier lokaal af: iemand heeft er iets aan veranderd. Leg dat per bestand in gewone taal
-uit, laat `verschil` zien (dat is het verschil tussen de versie hier en de versie in de
-template), en vraag per bestand één keuze:
+uit: geef de `reden` door (waarom het script het bestand heeft overgeslagen) en laat
+`verschil` zien (dat is het verschil tussen de versie hier en de versie in de template).
+Vraag daarna per bestand één keuze:
 
 - **template**: de versie van de template overnemen; de lokale aanpassing verdwijnt;
 - **eigen**: het bestand laten zoals het is; het blijft dan afwijken van de template en
@@ -39,6 +40,14 @@ template), en vraag per bestand één keuze:
 
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
 wat er nu werkt, en Stage Two kan er later naar kijken.
+
+Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
+markeringen (`stack:begin` en `stack:end`) ontbreken, dan is **template** geen geldige
+keuze: het script weigert die, omdat het hele bestand vervangen ook het eigen deel van
+de gebruiker zou wissen. Bied dan alleen **eigen** aan. Wil de gebruiker toch de versie
+van de template, dan zet hij eerst zelf de markeringen terug in dat bestand (je mag
+uitleggen waar ze horen: als commentaarregels om het stuk dat van de template komt) en
+draait hij daarna `/stack:bijwerken` opnieuw.
 
 ## Stap 3: uitvoeren
 
@@ -52,6 +61,10 @@ node "${CLAUDE_SKILL_DIR}/scripts/bijwerken.mjs" --json --werkmap "<werkmap uit 
 Zonder keuzes laat je `--los-op` weg. Het script commit met de git-naam en het
 e-mailadres van de gebruiker, pusht de branch `stack-bijwerken/v<versie>` naar zijn
 eigen GitHub en opent de pull request, of werkt een bestaande bij.
+
+Komt hier `mislukt` of `gestopt` terug, dan handel je dat net zo af als in stap 1:
+geef `reden` door en stop. De tijdelijke kopie is dan al opgeruimd; wil de gebruiker
+het opnieuw proberen, dan begint hij weer bij stap 1. Ga bij `gepusht` door naar stap 4.
 
 ## Stap 4: afronden
 

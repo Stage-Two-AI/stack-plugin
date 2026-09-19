@@ -115,18 +115,22 @@ function leesToestand(werkmap) {
   return JSON.parse(readFileSync(join(werkmap, TOESTAND), "utf8"));
 }
 
-/** Alleen een map die dit script zelf heeft gemaakt, en niet ouder dan een uur. */
+/**
+ * Alleen een map die dit script zelf heeft gemaakt, en niet ouder dan een uur. Geeft
+ * `{ fout, eigen }`: `fout` is de reden om te weigeren (of null), `eigen` is true zodra
+ * vaststaat dat de map van dit script is; dan mag de aanroeper hem ook opruimen.
+ */
 export function controleerWerkmap(werkmap, { tmp = tmpdir(), nu = Date.now() } = {}) {
-  if (typeof werkmap !== "string" || !werkmap) return "geef --werkmap de map uit de droogloop mee";
+  if (typeof werkmap !== "string" || !werkmap) return { fout: "geef --werkmap de map uit de droogloop mee", eigen: false };
   const echt = resolve(werkmap);
   const basis = resolve(tmp);
   if (dirname(echt) !== basis || !echt.slice(basis.length + 1).startsWith(WERKMAP_PREFIX)) {
-    return "de werkmap ligt niet in de tijdelijke map van deze computer; gebruik de map uit de droogloop";
+    return { fout: "de werkmap ligt niet in de tijdelijke map van deze computer; gebruik de map uit de droogloop", eigen: false };
   }
-  if (!existsSync(join(echt, TOESTAND))) return "de werkmap is geen droogloop van dit script; draai eerst --droogloop";
+  if (!existsSync(join(echt, TOESTAND))) return { fout: "de werkmap is geen droogloop van dit script; draai eerst --droogloop", eigen: false };
   const leeftijd = nu - statSync(join(echt, TOESTAND)).mtimeMs;
-  if (leeftijd > WERKMAP_MAX_LEEFTIJD_MS) return "de droogloop is ouder dan een uur; draai --droogloop opnieuw";
-  return null;
+  if (leeftijd > WERKMAP_MAX_LEEFTIJD_MS) return { fout: "de droogloop is ouder dan een uur; draai --droogloop opnieuw", eigen: true };
+  return { fout: null, eigen: true };
 }
 
 /** Het verschil tussen het bestand in de app en dat in de template, als tekst voor de bouwer. */
@@ -162,7 +166,12 @@ export function droogloop({ checkout, env = process.env }) {
 
   const branch = branchNaam(AFZENDER, doel);
   if (metGh && repo) {
-    const andere = openPRVoorVersie(repo, doel);
+    let andere = null;
+    try {
+      andere = openPRVoorVersie(repo, doel);
+    } catch (fout) {
+      return mislukt(`de open pull requests van ${repo} zijn niet op te vragen: ${eersteRegel(fout)}`);
+    }
     if (andere && andere.headRefName !== branch) {
       return gestopt(`er staat al een pull request open voor versie ${doel}, geopend door Stage Two: ${andere.url}; merge die, of vraag Stage Two hem te sluiten`, { pr: andere });
     }
@@ -225,14 +234,18 @@ function uitlegNaDroogloop(resultaat) {
 // ---------------------------------------------------------------- de tweede aanroep
 
 export function voerUit({ werkmap, losOp }) {
-  const fout = controleerWerkmap(werkmap);
-  if (fout) return mislukt(fout);
-  const toestand = leesToestand(werkmap);
+  const controle = controleerWerkmap(werkmap);
+  if (controle.fout) {
+    // Een verouderde map van onszelf ruimen we op; een vreemde map laten we staan.
+    if (controle.eigen) verwijderWerkmap(werkmap);
+    return mislukt(controle.fout);
+  }
   const kloon = join(werkmap, "app");
   const tmplMap = join(werkmap, "template");
-  const { resultaat, branch, repo, metGh, checkout } = toestand;
 
   try {
+    // Ook een kapotte toestand.json valt in de catch hieronder: reden in één regel, map weg.
+    const { resultaat, branch, repo, metGh, checkout } = leesToestand(werkmap);
     const manifest = leesManifest(readFileSync(join(tmplMap, MANIFEST_PAD), "utf8"));
     const opgelost = [];
     for (const { pad, keuze } of losOp) {
@@ -285,7 +298,7 @@ export function voerUit({ werkmap, losOp }) {
     let pr = null;
     if (metGh && repo) {
       pr = openOfWerkPRBij({ repo, branch, titel: prTitel(resultaat.naar), tekst });
-      sluitOuderePRs({ repo, prefix: "stack-bijwerken", doelVersie: resultaat.naar, tekst: sluitTekst(resultaat.naar) });
+      sluitOuderePRs({ repo, prefix: "stack-bijwerken", doelVersie: resultaat.naar, tekst: sluitTekst(resultaat.naar), map: kloon });
     }
     verwijderWerkmap(werkmap);
     return {
@@ -350,7 +363,13 @@ function toon(uitkomst, json) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2);
-  const uitkomst = hoofd(argv);
+  let uitkomst;
+  try {
+    uitkomst = hoofd(argv);
+  } catch (fout) {
+    // Nooit een stack trace op het scherm: ook een onverwachte fout wordt één JSON-object.
+    uitkomst = { status: "mislukt", reden: zonderLogin(eersteRegel(fout)) };
+  }
   toon(uitkomst, argv.includes("--json"));
   process.exitCode = uitkomst.status === "mislukt" || uitkomst.status === "gestopt" ? 1 : 0;
 }

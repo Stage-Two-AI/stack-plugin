@@ -109,8 +109,7 @@ function openBijwerkPR(repo, versie) {
 }
 
 /** Een kopie van de template bij een klant is geen project maar een spiegel: de hele boom gelijktrekken. */
-function spiegel({ repo, map, tmplMap, versie, doelVersie, doeHet, log }) {
-  const branch = branchNaam(AFZENDER, doelVersie);
+function spiegel({ repo, map, tmplMap, branch, versie, doelVersie, doeHet, log }) {
   maakBranch(map, branch);
   const bron = new Set(git(tmplMap, "ls-files").split("\n").filter(Boolean));
   const hier = new Set(git(map, "ls-files").split("\n").filter(Boolean));
@@ -193,13 +192,16 @@ export function verwerk({ project, werkmap, tmplMap, doelVersie, rulesetPad, opt
 
   const map = join(werkmap, repo.replaceAll("/", "_"));
   kloonRepo({ url: repo, doel: map, viaGh: true });
-  if (project.soort === "template") return spiegel({ repo, map, tmplMap, versie, doelVersie, doeHet: opties.doeHet, log });
 
+  // Deze rem geldt voor app én spiegel: een sync-branch waar een mens op heeft gewerkt
+  // wordt nooit stilletjes opnieuw opgebouwd en overschreven.
   const branch = branchNaam(AFZENDER, doelVersie);
   if (!branchHerbouwbaar(map, branch)) {
     log(`  ${rood("x GESTOPT")}: op ${branch} staat een commit die niet van de sync is; bekijk die branch eerst`);
     return "gestopt";
   }
+  if (project.soort === "template") return spiegel({ repo, map, tmplMap, branch, versie, doelVersie, doeHet: opties.doeHet, log });
+
   maakBranch(map, branch);
   const resultaat = pasToe({ map, tmplMap, git: gitVoorKern(map, tmplMap), pnpm: pnpmVoorKern() });
 
@@ -234,14 +236,16 @@ export function verwerk({ project, werkmap, tmplMap, doelVersie, rulesetPad, opt
   push(map, branch);
   const pr = openOfWerkPRBij({ repo, branch, titel: prTitel(doelVersie), tekst: prTekst({ resultaat, afzender: AFZENDER }) });
   log(`  ${groen("v")} ${pr.nieuw ? pr.url : `bestaande PR #${pr.number} bijgewerkt`}`);
-  for (const naam of sluitOuderePRs({ repo, prefix: PREFIX, doelVersie, tekst: sluitTekst(doelVersie) })) {
-    log(`  ${grijs(`oudere sync-PR op ${naam} gesloten`)}`);
+  for (const naam of sluitOuderePRs({ repo, prefix: PREFIX, doelVersie, tekst: sluitTekst(doelVersie), map })) {
+    const nawoord = naam.verwijderd ? " (branch verwijderd)" : " (branch blijft: eigen commits)";
+    log(`  ${grijs(`oudere sync-PR op ${naam.branch} gesloten${nawoord}`)}`);
   }
   return pr.nieuw ? "pr-geopend" : "pr-bijgewerkt";
 }
 
 export function hoofd(argv, { env = process.env, log = console.log } = {}) {
-  if (env.GH_TOKEN) {
+  // gh leest ook GITHUB_TOKEN; dezelfde weigering, anders glipt een klanttoken er zo doorheen.
+  if (env.GH_TOKEN || env.GITHUB_TOKEN) {
     log(rood("draai dit vanuit /home/claude met je eigen sessie, niet met een klanttoken"));
     return 1;
   }

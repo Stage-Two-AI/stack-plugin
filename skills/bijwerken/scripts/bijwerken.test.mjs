@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -65,15 +65,20 @@ test("argumenten en het afplakken van een login in een URL", () => {
 test("controleerWerkmap weigert alles wat niet uit een droogloop komt", () => {
   const tmp = tijdelijkeMap("cw-");
   try {
-    assert.match(controleerWerkmap(null, { tmp }), /--werkmap/);
-    assert.match(controleerWerkmap("/etc", { tmp }), /tijdelijke map/);
+    assert.equal(controleerWerkmap(null, { tmp }).eigen, false);
+    assert.match(controleerWerkmap(null, { tmp }).fout, /--werkmap/);
+    assert.match(controleerWerkmap("/etc", { tmp }).fout, /tijdelijke map/);
     const goed = join(tmp, `${WERKMAP_PREFIX}abc`);
     mkdirSync(goed);
-    assert.match(controleerWerkmap(goed, { tmp }), /geen droogloop/);
+    const zonderToestand = controleerWerkmap(goed, { tmp });
+    assert.match(zonderToestand.fout, /geen droogloop/);
+    assert.equal(zonderToestand.eigen, false, "zonder toestand.json is de map niet bewezen van ons");
     writeFileSync(join(goed, "toestand.json"), "{}");
-    assert.equal(controleerWerkmap(goed, { tmp }), null);
-    assert.match(controleerWerkmap(goed, { tmp, nu: Date.now() + 2 * 3600 * 1000 }), /ouder dan een uur/);
-    assert.match(controleerWerkmap(join(tmp, "andere-abc"), { tmp }), /tijdelijke map/);
+    assert.deepEqual(controleerWerkmap(goed, { tmp }), { fout: null, eigen: true });
+    const verouderd = controleerWerkmap(goed, { tmp, nu: Date.now() + 2 * 3600 * 1000 });
+    assert.match(verouderd.fout, /ouder dan een uur/);
+    assert.equal(verouderd.eigen, true, "een verouderde map is wel van ons en mag opgeruimd worden");
+    assert.match(controleerWerkmap(join(tmp, "andere-abc"), { tmp }).fout, /tijdelijke map/);
   } finally {
     opruimen(tmp);
   }
@@ -131,6 +136,19 @@ test("open PR van de beheerde run voor dezelfde versie: gestopt met de URL, niet
     assert.equal(r.status, "gestopt");
     assert.match(r.reden, /pull\/7/);
     assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("gh pr list faalt: mislukt met een reden over de pull requests, niets gekloond", () => {
+  const w = wereld({ gh: { ...GH_STANDAARD, "pr list": { exit: 1, stderr: "boom" } } });
+  try {
+    const r = w.draai(["--json", "--droogloop"]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /pull requests/);
+    assert.match(r.reden, /boom/);
+    assert.deepEqual(w.werkmappen(), [], "de fout valt vóór het klonen; er is geen werkmap");
   } finally {
     w.opruimen();
   }
@@ -225,6 +243,39 @@ test("run na de merge: status bij", () => {
   }
 });
 
+test("kapotte toestand.json: mislukt zonder stack trace en de werkmap is weg", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    writeFileSync(join(d.werkmap, "toestand.json"), "dit is geen json {{{\n");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "mislukt");
+    assert.ok(r.reden.length > 0);
+    assert.ok(!existsSync(d.werkmap), "de kapotte werkmap is opgeruimd");
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("droogloop ouder dan een uur: mislukt en de werkmap is opgeruimd", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    const tweeUurTerug = new Date(Date.now() - 2 * 3600 * 1000);
+    utimesSync(join(d.werkmap, "toestand.json"), tweeUurTerug, tweeUurTerug);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /ouder dan een uur/);
+    assert.ok(!existsSync(d.werkmap), "de verouderde werkmap is opgeruimd");
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("afwijking: droogloop toont het verschil, --los-op template neemt over, eigen laat staan (AE5)", () => {
   const w = wereld();
   try {
@@ -254,6 +305,38 @@ test("afwijking: droogloop toont het verschil, --los-op template neemt over, eig
     assert.ok(git(w.klant.origin, "show", "stack-bijwerken/v9:.github/workflows/ci.yml").includes("echo eigen"));
     const body = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create").at(-1);
     assert.ok(body.includes("de eigen versie behouden"));
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("AGENTS.md zonder markeringen: overgeslagen met reden, --los-op template weigert (projectdeel), eigen slaagt", () => {
+  const w = wereld();
+  try {
+    const co = w.klant.checkout;
+    writeFileSync(join(co, "AGENTS.md"), "# Mijn app\nEen app voor de kwekerij.\n\nAfspraken versie 8, zonder markeringen\n");
+    git(co, "add", "-A");
+    git(co, "-c", "user.name=B", "-c", "user.email=b@b", "commit", "-q", "-m", "markeringen per ongeluk weggehaald");
+    git(co, "push", "-q", w.klant.origin, "HEAD:main");
+
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    const agents = d.overgeslagen.find((s) => s.pad === "AGENTS.md");
+    assert.ok(agents, "AGENTS.md staat bij overgeslagen");
+    assert.match(agents.reden, /markeringen stack:begin en stack:end ontbreken/);
+
+    const fout = w.draai(["--werkmap", d.werkmap, "--los-op", "AGENTS.md", "template"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /projectdeel/);
+    assert.ok(!existsSync(d.werkmap), "na de weigering is de werkmap weg");
+
+    const d2 = w.draai(["--droogloop"]);
+    assert.equal(d2.status, "klaar", d2.reden);
+    const r = w.draai(["--werkmap", d2.werkmap, "--los-op", "AGENTS.md", "eigen"]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.opgelost, [{ pad: "AGENTS.md", keuze: "eigen" }]);
+    assert.ok(git(w.klant.origin, "show", "stack-bijwerken/v9:AGENTS.md").includes("zonder markeringen"), "de eigen versie staat op de branch");
+    assert.ok(!existsSync(d2.werkmap));
   } finally {
     w.opruimen();
   }

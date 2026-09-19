@@ -2,13 +2,28 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, opruimen, tijdelijkeMap } from "../lib/test-hulp.mjs";
+import { commit, git, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, opruimen, tijdelijkeMap } from "../lib/test-hulp.mjs";
 import { IDENTITEIT, hoofd, leesArgumenten } from "./beheerd.mjs";
 
 const b64 = (tekst) => Buffer.from(tekst).toString("base64");
 const KLEUR = new RegExp(`${String.fromCharCode(27)}\\[\\d+m`, "g");
 
-function wereld({ route = "beheerd", prs = [], ruleset = [{ id: 1 }] } = {}) {
+/**
+ * Zet op de origin een branch stack-sync/v9 met een commit van een mens: gewoon git,
+ * zonder de trailer Stack-bijwerken. Vanuit een tweede kloon, zodat de checkout van de
+ * klant er niets van merkt. Geeft de sha terug die na de run nog moet staan.
+ */
+function menselijkeCommitOpSyncBranch(wortel, origin) {
+  const kloon = join(wortel, "tweede-kloon");
+  git(wortel, "clone", "-q", origin, kloon);
+  git(kloon, "checkout", "-q", "-b", "stack-sync/v9");
+  writeFileSync(join(kloon, "README.md"), "# Handmatig bijgewerkt\n");
+  commit(kloon, "handwerk op de sync-branch");
+  git(kloon, "push", "-q", "origin", "stack-sync/v9");
+  return git(origin, "rev-parse", "stack-sync/v9");
+}
+
+function wereld({ route = "beheerd", soort = "app", prs = [], ruleset = [{ id: 1 }] } = {}) {
   const wortel = tijdelijkeMap("beheerd-");
   const tmp = join(wortel, "tmp");
   mkdirSync(tmp);
@@ -26,7 +41,7 @@ function wereld({ route = "beheerd", prs = [], ruleset = [{ id: 1 }] } = {}) {
   });
   nepPnpm_opPad(nep.pad);
   const registerPad = join(wortel, "projecten.json");
-  writeFileSync(registerPad, JSON.stringify({ projecten: [{ repo, soort: "app", route, klant: "proef", sinds: "2026-09-19" }] }));
+  writeFileSync(registerPad, JSON.stringify({ projecten: [{ repo, soort, route, klant: "proef", sinds: "2026-09-19" }] }));
   const rulesetPad = join(wortel, "ruleset.json");
   writeFileSync(rulesetPad, "{}");
   const regels = [];
@@ -61,6 +76,7 @@ test("met GH_TOKEN in de omgeving weigert de run", () => {
   const regels = [];
   assert.equal(hoofd(["--register", "x", "--ruleset", "y"], { env: { GH_TOKEN: "x" }, log: (r) => regels.push(r) }), 1);
   assert.match(regels.join("\n"), /klanttoken/);
+  assert.equal(hoofd(["--register", "x", "--ruleset", "y"], { env: { GITHUB_TOKEN: "x" }, log: () => {} }), 1);
 });
 
 test("--status: één regel met versie, ruleset en route; niets gekloond of gepusht", () => {
@@ -134,6 +150,37 @@ test("open stack-bijwerken/v9-PR van de klant: overgeslagen en de PR genoemd", (
     w.draai(["--doe-het"]);
     assert.match(w.tekst(), /de klant heeft al een pull request open \(https:\/\/github\.com\/klant\/app\/pull\/3\)/);
     assert.equal(git(w.klant.origin, "branch", "--list", "stack-sync/v9"), "");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("soort template: droogloop toont de spiegel-regels en pusht niets", () => {
+  const w = wereld({ soort: "template" });
+  try {
+    assert.equal(w.draai([]), 0);
+    const t = w.tekst();
+    assert.match(t, /spiegel: \d+ bestand\(en\) anders, \d+ verwijderd/);
+    assert.match(t, /droogloop: niets gepusht/);
+    assert.match(t, /droogloop: 1/);
+    assert.equal(git(w.klant.origin, "branch", "--list", "stack-sync/v9"), "");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("soort template: een sync-branch met een commit van een mens wordt ook voor een spiegel niet overschreven", () => {
+  const w = wereld({ soort: "template" });
+  try {
+    const shaVooraf = menselijkeCommitOpSyncBranch(w.wortel, w.klant.origin);
+    assert.doesNotMatch(git(w.klant.origin, "log", "-1", "--format=%B", "stack-sync/v9"), /Stack-bijwerken/);
+    assert.equal(w.draai(["--doe-het"]), 0);
+    const t = w.tekst();
+    assert.match(t, /x GESTOPT: op stack-sync\/v9 staat een commit die niet van de sync is/);
+    assert.doesNotMatch(t, /spiegel:/);
+    assert.match(t, /gestopt: 1/);
+    assert.equal(git(w.klant.origin, "rev-parse", "stack-sync/v9"), shaVooraf);
+    assert.ok(!w.nep.aanroepen().some((a) => a[0] === "pr" && a[1] === "create"));
   } finally {
     w.opruimen();
   }
