@@ -177,7 +177,7 @@ test("echte run: branch op origin met de identiteit van de klant, main onaangero
     assert.match(git(w.klant.origin, "log", "-1", "--format=%B", "stack-bijwerken/v9"), /Stack-bijwerken: v9/);
     assert.equal(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-version"), "9");
     const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
-    assert.ok(create.includes("--repo") === false || true);
+    assert.equal(create[create.indexOf("--repo") + 1], "klant/app");
     const body = create[create.indexOf("--body") + 1];
     assert.ok(body.endsWith(BEVESTIGING));
     assert.ok(body.includes("/stack:bijwerken"));
