@@ -6,6 +6,7 @@
     "name": "Stage Two",
     "email": "info@stagetwo.nl"
   },
+  "license": "MIT",
   "homepage": "https://github.com/Stage-Two-AI/stack-plugin",
   "repository": "https://github.com/Stage-Two-AI/stack-plugin",
   "keywords": ["stage-two", "stack", "template", "werkwijze"]

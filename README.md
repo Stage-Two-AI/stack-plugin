@@ -15,7 +15,7 @@ installeert deze plugin één keer en heeft dan:
 Er komt geen token, machine of proces van Stage Two aan te pas. Ook als Stage Two er
 niet meer bij is, blijft dit werken.
 
-Licentie: nog te kiezen; tot die tijd alle rechten voorbehouden aan Stage Two.
+Licentie: MIT (zie `LICENSE`). De naam Stage Two en de huisstijl vallen daar niet onder.
 
 ## Voor de klant
 
