@@ -38,11 +38,11 @@ function wereld({ gh = GH_STANDAARD, tagV9 = true, app } = {}) {
     TMPDIR: tmp,
     STACK_TEMPLATE_REPO: template,
   };
-  const draai = (argv) => {
+  const draai = (argv, extra = {}) => {
     const oud = { ...process.env };
-    Object.assign(process.env, env);
+    Object.assign(process.env, env, extra);
     try {
-      return hoofd(argv, { cwd: klant.checkout, env });
+      return hoofd(argv, { cwd: klant.checkout, env: process.env });
     } finally {
       for (const k of Object.keys(process.env)) if (!(k in oud)) delete process.env[k];
       Object.assign(process.env, oud);
@@ -97,7 +97,8 @@ test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfr
 
   const n = wereld();
   try {
-    const r = hoofd(["--droogloop"], { cwd: n.klant.checkout, env: { ...n.env, STACK_TEMPLATE_REPO: join(n.wortel, "bestaat-niet") } });
+    // Ook hier de nep-gh op het PATH: anders zegt een niet-ingelogde echte gh (CI) iets anders.
+    const r = n.draai(["--droogloop"], { STACK_TEMPLATE_REPO: join(n.wortel, "bestaat-niet") });
     assert.equal(r.status, "mislukt");
     assert.match(r.reden, /niet bereikbaar/);
     assert.deepEqual(n.werkmappen(), []);
