@@ -107,10 +107,37 @@ Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde comma
 - `mislukt`: geef `reden` door. Staat er een `repo` in het antwoord, zeg dan dat de repo
   op GitHub al bestaat en dat Stage Two of een tweede poging met een andere naam nodig
   is. Verwijder zelf niets.
-- `gemaakt`: zeg waar de app staat (`url` en `map`), en loop `nogTeDoen` langs, elk punt
-  in één zin. De hosting (Vercel) en een eigen database (Supabase) koppelt Stage Two;
-  daar komt bewust geen toegang voor op deze computer. Probeer dat niet zelf te doen,
-  ook niet als er een opdrachtregel voor blijkt te staan.
+- `gemaakt`: zeg waar de app staat (`url` en `map`). Ga dan door naar stap 5b; de
+  `nogTeDoen` uit dit antwoord gebruik je alleen als stap 5b `geen-beheer` geeft.
+
+## Stap 5b: hosting en database laten inrichten
+
+De hosting (Vercel) en een eigen database (Supabase) worden ingericht door een
+workflow in de beheer-repo van de organisatie, op GitHub. Daar komt bewust geen toegang
+voor op deze computer. Probeer dat nooit zelf te doen, ook niet als er een
+opdrachtregel voor blijkt te staan.
+
+Bij een **eigen** database zeg je eerst, in één zin, dat er nu een databaseproject wordt
+aangemaakt dat maandelijks geld kost, en vraag je of dat akkoord is. Bij **geen** hoeft
+dat niet.
+
+Draai dan:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --inrichten --naam "<naam>" --eigenaar "<eigenaar>" --database geen|eigen
+```
+
+Zeg vooraf dat dit een paar minuten duurt (bij een eigen database tot een kwartier: een
+nieuwe database moet opstarten). Het antwoord:
+
+- `geen-beheer`: deze organisatie heeft (nog) geen beheer-repo, of de app staat onder een
+  persoonlijk account. Zeg dat Stage Two de hosting en de database koppelt, en loop de
+  `nogTeDoen` van stap 5 langs.
+- `mislukt`: geef `reden` door, met de `url` van de run als die er is. De app zelf is
+  gewoon klaar; alleen de koppeling ontbreekt. Verwijs naar Stage Two.
+- `ingericht`: de hosting staat, en bij een eigen database ook de twee databases. Loop
+  `nogTeDoen` langs, elk punt in één zin. Bij een eigen database staat daar een pull
+  request in die de gebruiker moet mergen; zeg dat de controles eerst groen moeten zijn.
 
 ## Stap 6: en nu verder
 

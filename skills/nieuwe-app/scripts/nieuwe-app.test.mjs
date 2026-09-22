@@ -9,7 +9,9 @@ import {
   geldigeNaam,
   kiesReviewer,
   leesArgumenten,
+  leesInrichting,
   nogTeDoen,
+  nogTeDoenNaInrichting,
   vulIn,
   zetDatabaseStand,
 } from "./nieuwe-app.mjs";
@@ -50,6 +52,8 @@ test("controle: precies één modus, geldige stand, en bij gedeeld de eigenaar e
   assert.equal(controleerArgumenten(basis), null);
   assert.match(controleerArgumenten({ ...basis, doeHet: true }), /precies één/);
   assert.match(controleerArgumenten({ ...basis, droogloop: false }), /precies één/);
+  assert.equal(controleerArgumenten({ ...basis, droogloop: false, inrichten: true }), null);
+  assert.match(controleerArgumenten({ ...basis, droogloop: false, inrichten: true, database: "gedeeld", gedeeldEigenaar: "Org/erp", gedeeldRef: "abcdefghijklmnopqrst" }), /alleen met --database geen of eigen/);
   assert.match(controleerArgumenten({ ...basis, naam: "Voorraad" }), /kleine letters/);
   assert.match(controleerArgumenten({ ...basis, eigenaar: null }), /--eigenaar/);
   assert.match(controleerArgumenten({ ...basis, database: "ja" }), /geen, gedeeld of eigen/);
@@ -122,4 +126,23 @@ test("nog te doen: hosting altijd bij Stage Two, database alleen bij eigen, rule
   assert.match(open[0], /niet beschermd/);
   assert.match(open[1], /Vercel/);
   assert.match(open[2], /Supabase/);
+});
+
+test("inrichting lezen: de laatste INRICHTING-regel uit een logboek met voorvoegsels", () => {
+  const log = [
+    "inrichten\tVercel en Supabase inrichten\t2026-09-22T10:00:00Z ::add-mask::geheim",
+    'inrichten\tVercel en Supabase inrichten\t2026-09-22T10:00:01Z INRICHTING {"status":"gelukt","vercel":{"project":"voorraad"}}',
+    "inrichten\tSamenvatting\t2026-09-22T10:00:02Z klaar",
+  ].join("\n");
+  assert.deepEqual(leesInrichting(log), { status: "gelukt", vercel: { project: "voorraad" } });
+  assert.equal(leesInrichting("niets hier"), null);
+  assert.equal(leesInrichting("INRICHTING {kapot"), null);
+});
+
+test("na inrichting: bij eigen de pull request en de back-ups, altijd Sentry", () => {
+  const geen = nogTeDoenNaInrichting({ database: "geen", pr: null });
+  assert.equal(geen.length, 1);
+  const eigen = nogTeDoenNaInrichting({ database: "eigen", pr: "https://github.com/Org/voorraad/pull/1" });
+  assert.equal(eigen.length, 3);
+  assert.match(eigen[0], /pull\/1/);
 });

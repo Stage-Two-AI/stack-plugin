@@ -18,11 +18,18 @@
  *       beschermen. Hosting en database koppelt Stage Two: daar komt bewust geen
  *       toegang voor op de computer van de gebruiker (GitHub blijft de enige poort).
  *
+ *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> --database geen|eigen
+ *       start de workflow "App inrichten" in <org>/stack-beheer (Stage-Two-AI/stack-beheer),
+ *       wacht tot hij klaar is en leest het resultaat uit het logboek. Zo komen Vercel en
+ *       Supabase erbij zonder dat er een token op deze computer staat.
+ *
  * Elke uitkomst is één JSON-object op stdout met een `status`:
- *   klaar     (na --droogloop) alles staat klaar; zie `plan`
- *   gemaakt   (na --doe-het) de app staat op GitHub en op deze computer; zie `nogTeDoen`
- *   mislukt   een voorwaarde ontbreekt of een stap faalde; `reden` is één zin met één
- *             handeling. Was de repo al aangemaakt, dan staat hij in `repo`.
+ *   klaar        (na --droogloop) alles staat klaar; zie `plan`
+ *   gemaakt      (na --doe-het) de app staat op GitHub en op deze computer; zie `nogTeDoen`
+ *   ingericht    (na --inrichten) hosting en database staan; zie `resultaat` en `pr`
+ *   geen-beheer  (na --inrichten) deze eigenaar heeft geen beheer-repo; Stage Two koppelt
+ *   mislukt      een voorwaarde ontbreekt of een stap faalde; `reden` is één zin met één
+ *                handeling. Was de repo al aangemaakt, dan staat hij in `repo`.
  *
  * Er komt geen token van Stage Two aan te pas (KTD5): alles loopt via `gh` met de login
  * van de gebruiker. De map van de gebruiker wordt alleen aangevuld met één nieuwe
@@ -46,6 +53,7 @@ export function leesArgumenten(argv) {
     json: false,
     droogloop: false,
     doeHet: false,
+    inrichten: false,
     naam: null,
     eigenaar: null,
     omschrijving: null,
@@ -68,6 +76,7 @@ export function leesArgumenten(argv) {
     if (a === "--json") uit.json = true;
     else if (a === "--droogloop") uit.droogloop = true;
     else if (a === "--doe-het") uit.doeHet = true;
+    else if (a === "--inrichten") uit.inrichten = true;
     else if (a in metWaarde) {
       const waarde = argv[i + 1];
       if (waarde === undefined || waarde.startsWith("--")) throw new Error(`${a} vraagt een waarde`);
@@ -84,7 +93,10 @@ export function geldigeNaam(naam) {
 }
 
 export function controleerArgumenten(arg) {
-  if (arg.droogloop === arg.doeHet) return "geef precies één van --droogloop en --doe-het mee";
+  if ([arg.droogloop, arg.doeHet, arg.inrichten].filter(Boolean).length !== 1) {
+    return "geef precies één van --droogloop, --doe-het en --inrichten mee";
+  }
+  if (arg.inrichten && !["geen", "eigen"].includes(arg.database)) return "inrichten kan alleen met --database geen of eigen";
   if (!geldigeNaam(arg.naam)) {
     return "de naam mag alleen kleine letters, cijfers en streepjes bevatten (bijvoorbeeld voorraad-app)";
   }
@@ -262,6 +274,126 @@ function zetRuleset(repo) {
   }
 }
 
+// ---------------------------------------------------------------- inrichten
+
+export const BEHEER_REPO = "stack-beheer";
+export const BEHEER_WORKFLOW = "app-inrichten.yml";
+
+/** De regel `INRICHTING {...}` uit het logboek van de workflow, of null. */
+export function leesInrichting(logtekst) {
+  const regels = String(logtekst ?? "").split("\n");
+  for (let i = regels.length - 1; i >= 0; i -= 1) {
+    const m = /INRICHTING (\{.*\})\s*$/.exec(regels[i]);
+    if (!m) continue;
+    try {
+      return JSON.parse(m[1]);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Wat er na een geslaagde inrichting nog open staat. */
+export function nogTeDoenNaInrichting({ database, pr }) {
+  const lijst = [];
+  if (database === "eigen") {
+    lijst.push(
+      pr
+        ? `De pull request "Inrichting: testdatabase koppelen" mergen: ${pr}. Daarna gaan migraties eerst naar de testdatabase en dan naar productie.`
+        : "De pull request van de inrichting (testdatabase koppelen) opzoeken op de repo en mergen.",
+    );
+    lijst.push("Back-ups van de productiedatabase: die hangen aan het plan van de Supabase-organisatie; Stage Two controleert dat bij de eerste app met een eigen database.");
+  }
+  lijst.push("Foutbewaking (Sentry): Stage Two maakt een project aan en zet de DSN als omgevingsvariabele. Mag later.");
+  return lijst;
+}
+
+function slaap(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Start de workflow in de beheer-repo en wacht op het resultaat. `gh` doet al het werk
+ * met de login van de gebruiker: die heeft Write op stack-beheer (mag starten) en leest
+ * het logboek. Er komt geen token van Vercel of Supabase aan te pas.
+ */
+export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinuten = 30 } = {}) {
+  const fout = controleerArgumenten(arg);
+  if (fout) return { status: "mislukt", reden: fout };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack:starten" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack:starten)" };
+
+  const beheer = `${arg.eigenaar}/${BEHEER_REPO}`;
+  if (!isOrganisatie(arg.eigenaar) || !repoBestaat(beheer)) {
+    return {
+      status: "geen-beheer",
+      reden: `${arg.eigenaar} heeft geen beheer-repo (${beheer}); Stage Two koppelt de hosting en de database`,
+    };
+  }
+  const repo = `${arg.eigenaar}/${arg.naam}`;
+  if (!repoBestaat(repo)) return { status: "mislukt", reden: `de repo ${repo} bestaat niet; maak de app eerst aan (--doe-het)` };
+
+  const start = new Date();
+  try {
+    sh("gh", ["workflow", "run", BEHEER_WORKFLOW, "--repo", beheer, "-f", `repo=${arg.naam}`, "-f", `database=${arg.database}`], { cwd });
+  } catch (f) {
+    return { status: "mislukt", reden: `de workflow starten mislukte: ${eersteRegel(f)} (heb je Write op ${beheer}?)` };
+  }
+
+  // GitHub registreert de run een paar seconden na het starten; zoek de eerste die van ná de start is.
+  let run = null;
+  for (let i = 0; i < 12 && !run; i += 1) {
+    slaap(wachtMs);
+    try {
+      const lijst = JSON.parse(
+        sh("gh", ["run", "list", "--repo", beheer, "--workflow", BEHEER_WORKFLOW, "--limit", "5", "--json", "databaseId,createdAt,url"], { cwd }),
+      );
+      run = lijst.find((r) => new Date(r.createdAt) >= new Date(start.getTime() - 60000)) ?? null;
+    } catch {
+      run = null;
+    }
+  }
+  if (!run) return { status: "mislukt", reden: `de workflow is gestart maar de run is niet gevonden; kijk op https://github.com/${beheer}/actions` };
+
+  try {
+    sh("gh", ["run", "watch", String(run.databaseId), "--repo", beheer, "--interval", "10"], { cwd, timeout: maxWachtMinuten * 60000 });
+  } catch (f) {
+    if (f.killed || /ETIMEDOUT/.test(String(f.code))) {
+      return { status: "mislukt", reden: `de workflow draait na ${maxWachtMinuten} minuten nog; kijk op ${run.url}`, url: run.url };
+    }
+  }
+  let log = "";
+  try {
+    log = sh("gh", ["run", "view", String(run.databaseId), "--repo", beheer, "--log"], { cwd, ruw: true, maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    log = "";
+  }
+  const resultaat = leesInrichting(log);
+  if (!resultaat) return { status: "mislukt", reden: `geen resultaat gevonden in het logboek van de workflow; kijk op ${run.url}`, url: run.url };
+  if (resultaat.status !== "gelukt") {
+    return { status: "mislukt", reden: resultaat.reden ?? "de inrichting is mislukt", url: run.url };
+  }
+  let pr = null;
+  if (arg.database === "eigen") {
+    try {
+      const prs = JSON.parse(sh("gh", ["pr", "list", "--repo", repo, "--head", "inrichting/testdatabase", "--json", "url"], { cwd }));
+      pr = prs[0]?.url ?? null;
+    } catch {
+      pr = null;
+    }
+  }
+  return {
+    status: "ingericht",
+    repo,
+    url: run.url,
+    database: arg.database,
+    resultaat,
+    pr,
+    nogTeDoen: nogTeDoenNaInrichting({ database: arg.database, pr }),
+  };
+}
+
 // ---------------------------------------------------------------- de run
 
 export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
@@ -388,7 +520,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(1);
   }
   try {
-    schrijf(arg.doeHet ? doeHet(arg) : voorcontrole(arg), arg.json);
+    schrijf(arg.inrichten ? richtIn(arg) : arg.doeHet ? doeHet(arg) : voorcontrole(arg), arg.json);
   } catch (fout) {
     schrijf({ status: "mislukt", reden: eersteRegel(fout) }, arg.json);
   }
