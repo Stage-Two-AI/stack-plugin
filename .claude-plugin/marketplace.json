@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "stack",
-      "description": "De werkwijze van Stage Two in Claude Code: de vaste routes, de bewaking van de gedeelde template en de skill /stack:bijwerken.",
+      "description": "De werkwijze van Stage Two in Claude Code: de vaste routes, de bewaking van de gedeelde template, en de skills /stack:starten, /stack:nieuwe-app en /stack:bijwerken.",
       "author": {
         "name": "Stage Two",
         "email": "info@stagetwo.nl"

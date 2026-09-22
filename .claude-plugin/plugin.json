@@ -1,7 +1,7 @@
 {
   "name": "stack",
-  "version": "1.0.0",
-  "description": "De werkwijze van Stage Two in Claude Code: de vaste routes, de bewaking van de gedeelde template en de skill /stack:bijwerken waarmee een klant zijn app zelf naar de nieuwste template brengt.",
+  "version": "1.1.0",
+  "description": "De werkwijze van Stage Two in Claude Code: de vaste routes, de bewaking van de gedeelde template, /stack:starten voor een nieuwe computer, /stack:nieuwe-app om zelf een app te beginnen en /stack:bijwerken om een app naar de nieuwste template te brengen.",
   "author": {
     "name": "Stage Two",
     "email": "info@stagetwo.nl"
