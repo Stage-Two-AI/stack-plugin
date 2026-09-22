@@ -64,10 +64,12 @@ nieuwe-app-aanvragen). Zie je ze niet, sluit Claude Code dan en open de map opni
 **Bijwerken van de plugin zelf.** Dat gaat vanzelf: elke app die volgens deze werkwijze
 is gebouwd (template versie 11 of nieuwer) zet het automatisch bijwerken aan zodra je de
 map van de app opent. Claude Code controleert dan na het starten op de achtergrond en
-laadt een nieuwe versie bij de volgende start. Wil je het met de hand doen, typ dan
-`/plugin`, ga naar Marketplaces en ververs `stagetwo`; daarna staat bij Installed een
-knop om de plugin bij te werken. Blijft die knop grijs, dan is de marketplace nog niet
-ververst.
+laadt een nieuwe versie bij de volgende start. Wil je het met de hand doen, vraag dan
+je assistent: "werk de Stage Two-plugin bij". Hij ververst eerst de marketplace en
+werkt daarna de plugin bij; sluit Claude Code daarna af en open het opnieuw. In een
+terminal kan het ook zelf: `/plugin`, Marketplaces, `stagetwo` verversen, dan bij
+Installed de knop om bij te werken (die blijft grijs tot de marketplace ververst is).
+In de desktop-app is dat paneel er niet; daar geldt de vraag aan je assistent.
 
 ## Beginnen op een nieuwe computer
 
@@ -222,9 +224,12 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
 5. Controleer dat de app op template versie 11 of nieuwer staat: dan werkt de plugin
-   zichzelf bij via `.claude/settings.json` van de app. In de desktop-app is er geen
-   schakelaar voor automatisch bijwerken (getest 22-09-2026), in het terminalpaneel wel
-   (`/plugin`, Marketplaces, stagetwo, "Enable auto-update").
+   zichzelf bij via `.claude/settings.json` van de app, zodra de map van de app open
+   staat (in een lege map gebeurt er niets). In de desktop-app is er geen `/plugin`-paneel
+   en geen schakelaar voor automatisch bijwerken (getest 22-09-2026); met de hand gaat het
+   daar via de meegeleverde opdrachtregel, en de assistent kan dat zelf doen:
+   `claude plugin marketplace update stagetwo` en dan `claude plugin update stack@stagetwo`,
+   daarna de app opnieuw openen.
 6. Loop de melding en `/stack:bijwerken` één keer samen door, en `/stack:nieuwe-app` als
    de klant zelf apps gaat starten. Vercel en Supabase koppelt de workflow "App
    inrichten" in `<klantorg>/stack-beheer` (recept: Stage-Two-AI/stack-beheer); die
