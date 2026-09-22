@@ -108,9 +108,13 @@ Daarna maakt je assistent de app aan uit de nieuwste template, zet de eerste ver
 GitHub en beschermt de hoofdtak. Hij eindigt met wat er nog open staat en met de
 volgende stap: open de nieuwe map in Claude Code en typ `/stack:verder-werken`.
 
-De hosting en een eigen database koppelt Stage Two. Dat is bewust: daarvoor is toegang
-tot Vercel en Supabase nodig, en die hoort niet op een werkcomputer te staan. GitHub is
-de enige plek waar de regels worden afgedwongen, en zo blijft dat.
+De hosting en een eigen database worden daarna ingericht door een workflow op GitHub, in
+de beheer-repo van je bedrijf (Stage Two zet die bij de start neer). Je assistent start
+die workflow en wacht op het resultaat; bij een eigen database vraagt hij eerst of het
+goed is dat er een databaseproject bij komt dat maandelijks geld kost. Dat is bewust zo
+gebouwd: de toegang tot Vercel en Supabase hoort niet op een werkcomputer te staan.
+GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
+bedrijf nog geen beheer-repo, dan koppelt Stage Two de hosting en de database.
 
 Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht en doet hij mee
 met updates van de werkwijze.
@@ -170,7 +174,8 @@ Alles hieronder is voor wie de plugin en de template onderhoudt.
 hooks/             de bewaker (PreToolUse) en de melding bij sessiestart (SessionStart)
 skills/            de zeven skills; met een script: bijwerken (bijwerken.mjs), starten
                    (controle.sh, shell omdat Node kan ontbreken) en nieuwe-app
-                   (nieuwe-app.mjs, plus ruleset.json voor de bescherming van main)
+                   (nieuwe-app.mjs: aanmaken, en --inrichten start de workflow in de
+                   beheer-repo van de klant; plus ruleset.json voor main)
 lib/               de kern: manifest lezen, toepassen, PR-tekst, git- en PR-stappen
 beheer/            de beheerde run over het register van Stage Two; geen skill, alleen voor Stage Two
 test/              de geheimenscan over boom en geschiedenis
@@ -214,8 +219,9 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
 5. Zet automatisch bijwerken van de plugin aan in `/plugin`.
 6. Loop de melding en `/stack:bijwerken` één keer samen door, en `/stack:nieuwe-app` als
-   de klant zelf apps gaat starten. Vercel en Supabase koppel jij per app; die toegang
-   komt nooit op de computer van de klant (besluit 22-09-2026).
+   de klant zelf apps gaat starten. Vercel en Supabase koppelt de workflow "App
+   inrichten" in `<klantorg>/stack-beheer` (recept: Stage-Two-AI/stack-beheer); die
+   toegang komt nooit op de computer van de klant (besluit 22-09-2026).
 7. Zet in `Stack/projecten.json` de `route` van het project op `plugin`; een app die de
    klant zelf met `/stack:nieuwe-app` maakte, voeg je toe zodra hij hem meldt.
 
