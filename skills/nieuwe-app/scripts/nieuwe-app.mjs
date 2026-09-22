@@ -6,16 +6,17 @@
  * gesprek ervoor (wat moet de app doen, welke databasestand) staat in SKILL.md.
  *
  *   node nieuwe-app.mjs --json --droogloop --naam <naam> --eigenaar <account-of-org> \
- *        --database geen|gedeeld|eigen [--omschrijving "..."] \
- *        [--gedeeld-eigenaar <org/repo> --gedeeld-ref <project_ref>] [--map <map>]
+ *        --database geen|eigen [--omschrijving "..."] [--map <map>]
+ *       (`--database gedeeld --gedeeld-eigenaar <org/repo> --gedeeld-ref <ref>` bestaat
+ *       ook, maar is een keuze van Stage Two en wordt in het klantgesprek niet aangeboden)
  *       voorcontrole: staat alles klaar, bestaat de repo nog niet, waar landt hij, wie
  *       wordt reviewer. Maakt niets aan.
  *
  *   node nieuwe-app.mjs --json --doe-het ...dezelfde vlaggen...
  *       repo aanmaken uit de template, klonen, invullen, databasestand zetten, pakketten
  *       installeren, committen met de identiteit van de gebruiker, pushen, main
- *       beschermen, en als de Vercel-opdrachtregel er is en ingelogd: het Vercel-project
- *       koppelen.
+ *       beschermen. Hosting en database koppelt Stage Two: daar komt bewust geen
+ *       toegang voor op de computer van de gebruiker (GitHub blijft de enige poort).
  *
  * Elke uitkomst is één JSON-object op stdout met een `status`:
  *   klaar     (na --droogloop) alles staat klaar; zie `plan`
@@ -158,22 +159,22 @@ export function zetDatabaseStand(map, { database, gedeeldEigenaar, gedeeldRef })
 }
 
 /** Wat er na het script nog te doen is, per databasestand en per uitkomst. */
-export function nogTeDoen({ database, ruleset, vercel }) {
+export function nogTeDoen({ database, ruleset }) {
   const lijst = [];
   if (!ruleset.gelukt) {
     lijst.push(
       "main is nog niet beschermd (meestal: een privérepo op een gratis GitHub-plan). Regel het plan, of vraag Stage Two.",
     );
   }
-  if (vercel.status !== "gekoppeld") {
-    lijst.push("Vercel: het project koppelen aan deze repo (preview per pull request, productie op main).");
-  }
+  lijst.push(
+    "Hosting (Vercel): Stage Two koppelt het project aan deze repo (preview per pull request, productie op main). Daar komt bewust geen toegang voor op deze computer.",
+  );
   if (database === "eigen") {
     lijst.push(
-      "Supabase: een project en een testproject aanmaken op naam van het bedrijf, back-ups aanzetten, en de secrets SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD en SUPABASE_TEST_DB_PASSWORD op de repo zetten. Stage Two doet dit met je bij de eerste app met een eigen database.",
+      "Database (Supabase): Stage Two maakt het project en het testproject aan op naam van het bedrijf, zet back-ups aan en zet de secrets op de repo. Tot die tijd kun je gewoon bouwen; de kwaliteitspoort draait tegen een eigen testdatabase.",
     );
   }
-  lijst.push("Foutbewaking (Sentry): een project aanmaken en de DSN als omgevingsvariabele zetten. Mag later.");
+  lijst.push("Foutbewaking (Sentry): Stage Two maakt een project aan en zet de DSN als omgevingsvariabele. Mag later.");
   return lijst;
 }
 
@@ -258,33 +259,6 @@ function zetRuleset(repo) {
     return { gelukt: true };
   } catch (fout) {
     return { gelukt: false, reden: eersteRegel(fout) };
-  }
-}
-
-/**
- * Vercel, alleen als de opdrachtregel er is én ingelogd. Niets installeren, nergens
- * inloggen: dat is een bewuste stap van de gebruiker (zie SKILL.md). Lukt het niet,
- * dan komt het in `nogTeDoen` en is de app verder gewoon klaar.
- */
-function koppelVercel(map, naam) {
-  const vercel = (...args) => sh("vercel", args, { cwd: map, timeout: 180000, shell: process.platform === "win32" });
-  try {
-    vercel("whoami");
-  } catch (fout) {
-    return {
-      status: fout.code === "ENOENT" ? "geen-cli" : "niet-ingelogd",
-      reden:
-        fout.code === "ENOENT"
-          ? "de Vercel-opdrachtregel staat niet op deze computer"
-          : "de Vercel-opdrachtregel is niet ingelogd (vercel login)",
-    };
-  }
-  try {
-    vercel("link", "--yes", "--project", naam);
-    vercel("git", "connect", "--yes");
-    return { status: "gekoppeld" };
-  } catch (fout) {
-    return { status: "mislukt", reden: eersteRegel(fout) };
   }
 }
 
@@ -385,7 +359,6 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
   }
 
   const ruleset = zetRuleset(repo);
-  const vercel = koppelVercel(map, arg.naam);
   return {
     status: "gemaakt",
     repo,
@@ -394,8 +367,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
     database: arg.database,
     reviewer,
     ruleset,
-    vercel,
-    nogTeDoen: nogTeDoen({ database: arg.database, ruleset, vercel }),
+    nogTeDoen: nogTeDoen({ database: arg.database, ruleset }),
   };
 }
 

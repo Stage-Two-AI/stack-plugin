@@ -91,14 +91,13 @@ een nieuwe app beginnen, verder werken aan een bestaande app, of een app bijwerk
 Typ `/stack:nieuwe-app`. Het eerste deel is een gesprek, en dat is bewust: de keuzes
 daar zijn achteraf duur om te veranderen.
 
-1. Is het echt een nieuwe app, of past het bij een app die je al hebt? Een scherm erbij
-   over dezelfde gegevens is een uitbreiding, en die maak je met `/stack:verder-werken`.
+1. Is het echt een nieuwe app, of past het bij een app die je al hebt? De regel is: één
+   app per verzameling gegevens. Gaat het over gegevens die al in een app zitten, dan is
+   het een uitbreiding van die app, en die maak je met `/stack:verder-werken`.
 2. Wat moet de app doen, voor wie, met welke gegevens, en wat is de eerste versie waar
    iemand echt iets aan heeft?
 3. **Heeft de app een database nodig?** Je assistent geeft advies, met de reden:
    - *geen*: de app draait alleen op de hosting; kost niets extra;
-   - *gedeeld*: de app gebruikt de gegevens van een bestaande app van je bedrijf; kost
-     niets extra en houdt de gegevens op één plek;
    - *eigen*: een eigen databaseproject, nodig bij inloggen, meerdere mensen die tegelijk
      werken of veel gegevens. **Dit kost maandelijks geld** en wordt eenmalig door Stage
      Two ingericht.
@@ -106,10 +105,12 @@ daar zijn achteraf duur om te veranderen.
    je computer.
 
 Daarna maakt je assistent de app aan uit de nieuwste template, zet de eerste versie op
-GitHub en beschermt de hoofdtak. Hij eindigt met wat er nog open staat (de hosting
-koppelen doet Stage Two bij de start van het project, of jijzelf als je dat al eens
-gedaan hebt) en met de volgende stap: open de nieuwe map in Claude Code en typ
-`/stack:verder-werken`.
+GitHub en beschermt de hoofdtak. Hij eindigt met wat er nog open staat en met de
+volgende stap: open de nieuwe map in Claude Code en typ `/stack:verder-werken`.
+
+De hosting en een eigen database koppelt Stage Two. Dat is bewust: daarvoor is toegang
+tot Vercel en Supabase nodig, en die hoort niet op een werkcomputer te staan. GitHub is
+de enige plek waar de regels worden afgedwongen, en zo blijft dat.
 
 Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht en doet hij mee
 met updates van de werkwijze.
@@ -213,8 +214,8 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
 5. Zet automatisch bijwerken van de plugin aan in `/plugin`.
 6. Loop de melding en `/stack:bijwerken` één keer samen door, en `/stack:nieuwe-app` als
-   de klant zelf apps gaat starten (Vercel: `vercel login` op zijn computer als hij de
-   hosting zelf wil koppelen, anders doe jij dat per app).
+   de klant zelf apps gaat starten. Vercel en Supabase koppel jij per app; die toegang
+   komt nooit op de computer van de klant (besluit 22-09-2026).
 7. Zet in `Stack/projecten.json` de `route` van het project op `plugin`; een app die de
    klant zelf met `/stack:nieuwe-app` maakte, voeg je toe zodra hij hem meldt.
 

@@ -112,11 +112,12 @@ test("databasestand eigen: true, migraties blijven", () => {
   assert.equal(existsSync(join(map, "supabase/migrations/0001_items.sql")), true);
 });
 
-test("nog te doen: alleen wat echt open staat", () => {
-  const alles = nogTeDoen({ database: "geen", ruleset: { gelukt: true }, vercel: { status: "gekoppeld" } });
-  assert.equal(alles.length, 1);
-  assert.match(alles[0], /Sentry/);
-  const open = nogTeDoen({ database: "eigen", ruleset: { gelukt: false }, vercel: { status: "geen-cli" } });
+test("nog te doen: hosting altijd bij Stage Two, database alleen bij eigen, ruleset alleen als die faalde", () => {
+  const geen = nogTeDoen({ database: "geen", ruleset: { gelukt: true } });
+  assert.equal(geen.length, 2);
+  assert.match(geen[0], /Vercel/);
+  assert.match(geen[1], /Sentry/);
+  const open = nogTeDoen({ database: "eigen", ruleset: { gelukt: false } });
   assert.equal(open.length, 4);
   assert.match(open[0], /niet beschermd/);
   assert.match(open[1], /Vercel/);
