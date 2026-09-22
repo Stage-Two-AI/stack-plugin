@@ -7,6 +7,6 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test 'test/*.test.mjs' 'lib/*.test.mjs' 'hooks/*.test.mjs' 'skills/bijwerken/scripts/*.test.mjs' 'beheer/*.test.mjs'"
+    "test": "node --test 'test/*.test.mjs' 'lib/*.test.mjs' 'hooks/*.test.mjs' 'skills/*/scripts/*.test.mjs' 'beheer/*.test.mjs'"
   }
 }
