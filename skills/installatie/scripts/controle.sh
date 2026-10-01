@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# De controle achter /stack:starten: wat staat er op deze computer, en wat ontbreekt?
+# De controle achter /stack:installatie: wat staat er op deze computer, en wat ontbreekt?
 # Bewust een shellscript en geen Node: op een verse computer is Node juist een van de
 # dingen die kunnen ontbreken, en dan moet de controle nog steeds draaien. Bash is er
 # altijd waar Claude Code draait (op Windows via Git Bash).

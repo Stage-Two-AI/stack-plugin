@@ -1,11 +1,11 @@
 ---
-name: starten
-description: De eerste stap op een computer waar nog niets staat - controleert en installeert wat er nodig is om met de Stage Two-werkwijze te werken (Git, Node, pnpm, de GitHub-opdrachtregel), begeleidt het inloggen bij GitHub, zet de naam voor Git, en vraagt daarna wat de gebruiker wil doen (een nieuwe app starten, een bestaande app openen of bijwerken). Gebruik dit als de gebruiker /stack:starten typt, net begint, in een lege map zit, of vraagt wat er geïnstalleerd moet worden.
+name: installatie
+description: De eerste stap op een computer waar nog niets staat - controleert en installeert wat er nodig is om met de Stage Two-werkwijze te werken (Git, Node, pnpm, de GitHub-opdrachtregel), begeleidt het inloggen bij GitHub, zet de naam voor Git, en vraagt daarna wat de gebruiker wil doen (een nieuwe app starten, een bestaande app openen of alles updaten). Gebruik dit als de gebruiker /stack:installatie typt, net begint, in een lege map zit, of vraagt wat er geïnstalleerd moet worden.
 ---
 
 Je helpt iemand die niet technisch is om zijn computer klaar te maken. Praat in gewone
 taal, één ding tegelijk, en leg uit wat er gaat gebeuren vóórdat het gebeurt. Vraag geen
-toestemming voor stappen die hieronder staan; de gebruiker heeft `/stack:starten` getypt
+toestemming voor stappen die hieronder staan; de gebruiker heeft `/stack:installatie` getypt
 en dat is de opdracht. Voer niets uit wat hier niet staat.
 
 ## Stap 1: kijken wat er is
@@ -118,8 +118,9 @@ Alles staat klaar. Vraag nu, met deze drie keuzes:
    de gebruiker die map in Claude Code moet openen (Bestand, map openen) en daar verder
    kan met `/stack:verder-werken`. Werk niet vanuit de huidige map aan die app: de
    afspraken en de bewaker werken alleen als de map van de app zelf open staat.
-3. **Een app bijwerken naar de nieuwste werkwijze.** Zelfde als 2, en dan
-   `/stack:bijwerken` in de map van de app.
+3. **Alles bijwerken.** Typ `/stack:updaten`. Dat werkt de plugin en de programma's op
+   deze computer bij, en daarna de apps die de gebruiker kiest, elk als pull request.
+   Een app hoeft daarvoor niet op deze computer te staan.
 
-Zeg tot slot dat `/stack:starten` altijd opnieuw getypt mag worden, bijvoorbeeld op een
+Zeg tot slot dat `/stack:installatie` altijd opnieuw getypt mag worden, bijvoorbeeld op een
 andere computer of na een herinstallatie: het slaat over wat al goed staat.

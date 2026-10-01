@@ -17,6 +17,7 @@ import {
   BASH_REGELS,
   BESCHERMDE_PREFIXEN,
   MATCHER,
+  MIGRATIE_CONTEXT,
   beoordeelStart,
   beoordeelTool,
   beschermdePaden,
@@ -128,8 +129,8 @@ test("pad: buiten de projectmap telt als buiten (null)", () => {
 
 // ---------------------------------------------------------------- beoordeelTool: paden
 
-test("tool: Edit van .github/workflows/ci.yml wordt geweigerd en de reden noemt /stack:bijwerken", () => {
-  geweigerd(bewerk(".github/workflows/ci.yml"), "/stack:bijwerken", ".github/workflows/ci.yml", "Stage Two", "guard:template");
+test("tool: Edit van .github/workflows/ci.yml wordt geweigerd en de reden noemt /stack:updaten", () => {
+  geweigerd(bewerk(".github/workflows/ci.yml"), "/stack:updaten", ".github/workflows/ci.yml", "Stage Two", "guard:template");
 });
 
 test("tool: src/App.tsx, AGENTS.md en package.json zijn toegestaan", () => {
@@ -187,7 +188,7 @@ test("tool: STACK_ALLOW_POLICY_EDIT=1 laat padbewerkingen door, maar niet de Bas
   assert.deepEqual(bewerk(".github/workflows/ci.yml", { env }), TOE);
   assert.deepEqual(bewerk(".claude/hooks/x.mjs", { env }), TOE);
   geweigerd(bash("git push --force", env), "Force pushen");
-  geweigerd(bewerk(".github/workflows/ci.yml", { env: { STACK_ALLOW_POLICY_EDIT: "0" } }), "/stack:bijwerken");
+  geweigerd(bewerk(".github/workflows/ci.yml", { env: { STACK_ALLOW_POLICY_EDIT: "0" } }), "/stack:updaten");
 });
 
 test("tool: zonder manifest wordt nooit geweigerd (AE7)", () => {
@@ -242,7 +243,7 @@ test("bash: deploy-commando's worden geweigerd", () => {
 const SESSIE_REGELS = "/home/claude/stack/machines/claudecode/hooks/sessie-check-regels.mjs";
 
 test(
-  "sessie-check: het commando van /stack:bijwerken gaat door de sessiehook van claudecode vanuit een klantmap",
+  "sessie-check: het commando van /stack:updaten gaat door de sessiehook van claudecode vanuit een klantmap",
   { skip: !existsSync(SESSIE_REGELS) && "Stack-checkout niet aanwezig op deze machine" },
   async () => {
     const { beoordeelTool: sessieBeoordeelTool } = await import(SESSIE_REGELS);
@@ -275,12 +276,12 @@ test("start: binnen 24 uur na de vorige controle wordt niet gekeken", () => {
   assert.equal(moetControleren({ stempel: { tijdstip: NU.toISOString() }, nu: NU }), false);
 });
 
-test("start: lokaal 9, op afstand 10, geen stempel: melding met beide nummers en /stack:bijwerken, plus stempel", () => {
+test("start: lokaal 9, op afstand 10, geen stempel: melding met beide nummers en /stack:updaten, plus stempel", () => {
   const { melding, nieuweStempel } = beoordeelStart({ versieLokaal: 9, versieOpAfstand: 10, stempel: null, nu: NU });
   assert.ok(melding);
   assert.match(melding, /versie 9/);
   assert.match(melding, /versie 10/);
-  assert.match(melding, /\/stack:bijwerken/);
+  assert.match(melding, /\/stack:updaten/);
   assert.match(melding, /niet uit zonder dat/);
   assert.doesNotMatch(melding, /\u2014/);
   assert.deepEqual(nieuweStempel, { versieOpAfstand: 10, tijdstip: NU.toISOString() });
@@ -422,8 +423,31 @@ test("hook: PreToolUse in een repo met manifest weigert een templatebestand met 
   const json = JSON.parse(uit.stdout);
   assert.equal(json.hookSpecificOutput.hookEventName, "PreToolUse");
   assert.equal(json.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(json.hookSpecificOutput.permissionDecisionReason, /\/stack:bijwerken/);
+  assert.match(json.hookSpecificOutput.permissionDecisionReason, /\/stack:updaten/);
   assert.match(json.hookSpecificOutput.permissionDecisionReason, /\.github\/workflows\/ci\.yml/);
+});
+
+test("tool: schrijven in supabase/migrations/ wordt toegestaan met de databaseroute als context", () => {
+  for (const toolName of ["Write", "Edit"]) {
+    const r = beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST, toolName, toolInput: { file_path: `${PROJECT}/supabase/migrations/20261001_items.sql` } });
+    assert.equal(r.weiger, false);
+    assert.equal(r.context, MIGRATIE_CONTEXT);
+    assert.match(r.context, /docs\/routes\/databasewijziging\.md/);
+  }
+  const elders = beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST, toolName: "Write", toolInput: { file_path: "supabase/functions/x/index.ts" } });
+  assert.deepEqual(elders, TOE, "alleen de migratiemap krijgt de herinnering");
+  const zonderManifest = beoordeelTool({ projectmap: PROJECT, manifest: null, toolName: "Write", toolInput: { file_path: "supabase/migrations/a.sql" } });
+  assert.deepEqual(zonderManifest, TOE, "buiten een stack-repo zegt de hook niets");
+});
+
+test("hook: PreToolUse op een migratie geeft additionalContext zonder permissionDecision", () => {
+  const map = maakProject();
+  const uit = draaiHook(pre(map, "Write", { file_path: join(map, "supabase/migrations/20261001_items.sql"), content: "create table x();" }));
+  assert.equal(uit.status, 0);
+  const json = JSON.parse(uit.stdout);
+  assert.equal(json.hookSpecificOutput.hookEventName, "PreToolUse");
+  assert.equal(json.hookSpecificOutput.permissionDecision, undefined, "de gewone toestemmingsvraag blijft staan");
+  assert.match(json.hookSpecificOutput.additionalContext, /databasewijziging\.md/);
 });
 
 test("hook: PreToolUse laat src/App.tsx door en volgt cwd als CLAUDE_PROJECT_DIR ontbreekt", () => {
@@ -442,7 +466,7 @@ test("hook: SessionStart lokaal 9, op afstand 10, geen stempel: melding en stemp
   assert.equal(eerste.status, 0, eerste.stderr);
   assert.match(eerste.stdout, /versie 9/);
   assert.match(eerste.stdout, /versie 10/);
-  assert.match(eerste.stdout, /\/stack:bijwerken/);
+  assert.match(eerste.stdout, /\/stack:updaten/);
   const stempels = readdirSync(data);
   assert.equal(stempels.length, 1);
   assert.match(stempels[0], /\.json$/);
@@ -484,8 +508,8 @@ test("hook: twee repo's van dezelfde klant krijgen twee onafhankelijke stempels"
   const a = maakProject();
   const b = maakProject();
   const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
-  assert.match(draaiHook(start(a), { projectmap: a, data, opAfstand: 10 }).stdout, /\/stack:bijwerken/);
-  assert.match(draaiHook(start(b), { projectmap: b, data, opAfstand: 10 }).stdout, /\/stack:bijwerken/, "de stempel van a remt b niet");
+  assert.match(draaiHook(start(a), { projectmap: a, data, opAfstand: 10 }).stdout, /\/stack:updaten/);
+  assert.match(draaiHook(start(b), { projectmap: b, data, opAfstand: 10 }).stdout, /\/stack:updaten/, "de stempel van a remt b niet");
   assert.equal(readdirSync(data).length, 2);
 });
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Het script achter /stack:bijwerken: brengt de app van de klant naar de nieuwste
+ * Het script achter het templatedeel van /stack:updaten: brengt de app van de klant naar de nieuwste
  * versie van de Stage Two-template, als pull request van de klant zelf. Twee aanroepen
  * per ronde (KTD9), allebei vanuit de open checkout van de klant:
  *
- *   node bijwerken.mjs --json --droogloop
+ *   node bijwerken.mjs --json --droogloop [--repo <eigenaar>/<naam>]
  *       voorcontrole, tijdelijke kloon van de app en van de template (op de tag van de
  *       doelversie), branch stack-bijwerken/v<n>, de kern toepassen; niets gepusht.
  *       Het resultaat bevat `werkmap` voor de tweede aanroep.
@@ -12,6 +12,10 @@
  *   node bijwerken.mjs --json --werkmap <map> [--los-op <pad> template|eigen]...
  *       keuzes voor overgeslagen bestanden toepassen, committen met de identiteit uit de
  *       checkout, pushen als de boom verschilt, de pull request openen of bijwerken.
+ *
+ * Met --repo werkt het script een andere app van de klant bij, zonder dat die op deze
+ * computer staat: dezelfde route, alleen komt de kloon dan rechtstreeks van GitHub
+ * (via de gh-login) in plaats van via de origin van de open map.
  *
  * De open checkout van de klant wordt nooit gewijzigd (KTD4): alles gebeurt in een
  * tijdelijke map met rechten 0700, die na de tweede aanroep en bij elke mislukking
@@ -73,13 +77,14 @@ const TOESTAND = "toestand.json";
 // ---------------------------------------------------------------- argumenten
 
 export function leesArgumenten(argv) {
-  const uit = { json: false, droogloop: false, werkmap: null, losOp: [], checkout: null };
+  const uit = { json: false, droogloop: false, werkmap: null, losOp: [], checkout: null, repo: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--json") uit.json = true;
     else if (a === "--droogloop") uit.droogloop = true;
     else if (a === "--werkmap") uit.werkmap = argv[++i] ?? null;
     else if (a === "--checkout") uit.checkout = argv[++i] ?? null;
+    else if (a === "--repo") uit.repo = argv[++i] ?? null;
     else if (a === "--los-op") {
       uit.losOp.push({ pad: argv[++i] ?? null, keuze: argv[++i] ?? null });
     } else throw new Error(`onbekend argument: ${a}`);
@@ -146,23 +151,42 @@ function verschil(kloon, tmplMap, pad, maxRegels = 200) {
 
 // ---------------------------------------------------------------- de droogloop
 
-export function droogloop({ checkout, env = process.env }) {
-  if (!existsSync(join(checkout, MANIFEST_PAD)) || leesVersie(checkout) === null) {
-    return { status: "geen-template", reden: "deze repo heeft geen .claude/stack-version en .claude/stack-manifest.json en is dus niet uit de Stage Two-template gebouwd" };
+const GEEN_TEMPLATE = {
+  status: "geen-template",
+  reden: "deze repo heeft geen .claude/stack-version en .claude/stack-manifest.json en is dus niet uit de Stage Two-template gebouwd",
+};
+
+function isTemplateApp(map) {
+  return existsSync(join(map, MANIFEST_PAD)) && leesVersie(map) !== null;
+}
+
+function alBij(versie, doel) {
+  return { status: "bij", van: versie, naar: doel, reden: `deze app staat al op versie ${versie}` };
+}
+
+/**
+ * Zonder `opAfstand` de app in de open map (`checkout`); met `opAfstand` (eigenaar/naam)
+ * een andere app van de klant, rechtstreeks van GitHub. Die kennen we pas na het klonen,
+ * dus de controle op template en versie komt dan na de kloon.
+ */
+export function droogloop({ checkout, opAfstand = null, env = process.env }) {
+  if (opAfstand !== null && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(opAfstand)) {
+    return mislukt("geef --repo als eigenaar/naam, bijvoorbeeld Mijn-Bedrijf/voorraad");
   }
-  const versieLokaal = leesVersie(checkout);
+  if (opAfstand === null && !isTemplateApp(checkout)) return GEEN_TEMPLATE;
 
   const metGh = ghAanwezig();
+  if (opAfstand !== null && !metGh) return mislukt("een andere app bijwerken kan alleen met de GitHub-opdrachtregel (gh); draai eerst /stack:installatie");
   if (metGh && !ghIngelogd()) return mislukt("log eerst in bij GitHub met `gh auth login`, dan kan de pull request geopend worden");
 
-  const origin = originUrl(checkout);
+  const origin = opAfstand !== null ? `https://github.com/${opAfstand}.git` : originUrl(checkout);
   if (!origin) return mislukt("deze checkout heeft geen origin op GitHub; voeg die toe met `git remote add origin <url>`");
-  const repo = repoUitUrl(origin);
+  const repo = opAfstand ?? repoUitUrl(origin);
 
   const tmplRepo = templateRepo(env);
   const doel = versieOpAfstand(tmplRepo);
   if (doel === null) return mislukt("de template is niet bereikbaar (geen netwerk, of nog geen versie-tag); probeer het later opnieuw");
-  if (versieLokaal >= doel) return { status: "bij", van: versieLokaal, naar: doel, reden: `deze app staat al op versie ${versieLokaal}` };
+  if (opAfstand === null && leesVersie(checkout) >= doel) return alBij(leesVersie(checkout), doel);
 
   const branch = branchNaam(AFZENDER, doel);
   if (metGh && repo) {
@@ -180,15 +204,26 @@ export function droogloop({ checkout, env = process.env }) {
   const werkmap = mkdtempSync(join(tmpdir(), WERKMAP_PREFIX));
   try {
     const kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
-    const pushUrl = originPushUrl(checkout);
-    if (pushUrl) git(kloon, "remote", "set-url", "--push", "origin", pushUrl);
+    if (opAfstand !== null) {
+      if (!isTemplateApp(kloon)) {
+        verwijderWerkmap(werkmap);
+        return GEEN_TEMPLATE;
+      }
+      if (leesVersie(kloon) >= doel) {
+        verwijderWerkmap(werkmap);
+        return alBij(leesVersie(kloon), doel);
+      }
+    } else {
+      const pushUrl = originPushUrl(checkout);
+      if (pushUrl) git(kloon, "remote", "set-url", "--push", "origin", pushUrl);
+    }
     if (!pushDroog(kloon, branch)) {
       verwijderWerkmap(werkmap);
       return mislukt(`je hebt geen schrijfrecht op ${repo ?? "deze repo"}; vraag de eigenaar je toe te voegen als medewerker`);
     }
     if (!branchHerbouwbaar(kloon, branch)) {
       verwijderWerkmap(werkmap);
-      return gestopt(`op de branch ${branch} staat een commit die niet van /stack:bijwerken is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`);
+      return gestopt(`op de branch ${branch} staat een commit die niet van /stack:updaten is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`);
     }
 
     const tmplMap = kloonTemplate({ repo: tmplRepo, doel: join(werkmap, "template") });
@@ -207,7 +242,7 @@ export function droogloop({ checkout, env = process.env }) {
     }
     for (const s of resultaat.overgeslagen) s.verschil = verschil(kloon, tmplMap, s.pad);
 
-    const toestand = { checkout, origin: zonderLogin(origin), repo, branch, metGh, resultaat, tijdstip: new Date().toISOString() };
+    const toestand = { checkout: opAfstand === null ? checkout : null, origin: zonderLogin(origin), repo, branch, metGh, resultaat, tijdstip: new Date().toISOString() };
     writeFileSync(join(werkmap, TOESTAND), `${JSON.stringify(toestand, null, 2)}\n`);
     return { ...resultaat, status: "klaar", branch, repo, werkmap, ...uitlegNaDroogloop(resultaat) };
   } catch (fout) {
@@ -278,7 +313,8 @@ export function voerUit({ werkmap, losOp }) {
       return gestopt("er zou iets buiten het manifest wijzigen", { buitenManifest: buiten });
     }
 
-    const identiteit = gitIdentiteit(checkout);
+    // Zonder open map (--repo) geldt de globale git-naam; de verse kloon heeft geen eigen.
+    const identiteit = gitIdentiteit(checkout ?? kloon);
     if (!identiteit.naam || !identiteit.email) {
       verwijderWerkmap(werkmap);
       return mislukt("git kent je naam en e-mailadres niet; stel ze in met `git config --global user.name` en `user.email`");
@@ -289,7 +325,7 @@ export function voerUit({ werkmap, losOp }) {
     // Tussen de droogloop en nu kan iemand op de branch hebben gecommit; ook dan blijven we ervan af.
     if (!branchHerbouwbaar(kloon, branch)) {
       verwijderWerkmap(werkmap);
-      return gestopt(`op de branch ${branch} staat sinds de droogloop een commit die niet van /stack:bijwerken is; bekijk de open pull request voor die branch en draai dan opnieuw`);
+      return gestopt(`op de branch ${branch} staat sinds de droogloop een commit die niet van /stack:updaten is; bekijk de open pull request voor die branch en draai dan opnieuw`);
     }
     const gepusht = !alGelijkOpGitHub(kloon, branch);
     if (gepusht) push(kloon, branch);
@@ -345,7 +381,7 @@ export function hoofd(argv, { cwd = process.cwd(), env = process.env } = {}) {
   }
   const checkout = resolve(args.checkout ?? cwd);
   if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp });
-  if (args.droogloop) return droogloop({ checkout, env });
+  if (args.droogloop) return droogloop({ checkout, opAfstand: args.repo, env });
   return mislukt("geef --droogloop (eerste aanroep) of --werkmap <map> (tweede aanroep) mee");
 }
 

@@ -17,6 +17,10 @@
  * (AGENTS.md) zijn níet beschermd: het projectdeel daarvan mag bewerkt worden en de
  * CI-check bewaakt het templatedeel.
  *
+ * Eén regel weigert niets maar herinnert: wie in supabase/migrations/ schrijft, krijgt de
+ * route docs/routes/databasewijziging.md voorgehouden (`context`). Die route was eerder
+ * een eigen skill; nu komt hij precies op het moment dat het ertoe doet.
+ *
  * Bewust openlaten kan met STACK_ALLOW_POLICY_EDIT=1 (padbewerkingen), voor wanneer je
  * met opzet aan het vangnet zelf werkt. De dev-server heeft zijn eigen, kleinere
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
@@ -46,7 +50,8 @@ export const BASH_REGELS = [
     patroon: /\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?dev\b|\bvite\s*$|\bvite\s+(?!build|preview)/,
     // Lokaal kijken voor jezelf mag, mits expliciet: met STACK_ALLOW_DEV=1 vóór het
     // commando (of in de omgeving van de sessie). Dezelfde ontsnapping als scripts/dev.mjs,
-    // zodat de hook nooit strenger is dan de kern. Zie docs/routes/lokaal-kijken.md.
+    // zodat de hook nooit strenger is dan de kern. In de Claude-app hoeft dit niet: daar
+    // start de preview via .claude/launch.json, buiten de Bash-tool om.
     tenzij: (commando, env) => /\bSTACK_ALLOW_DEV=1\b/.test(commando) || env?.STACK_ALLOW_DEV === "1",
     reden: [
       "Geen dev-server om werk te laten zien.",
@@ -56,8 +61,10 @@ export const BASH_REGELS = [
       "Zie docs/WERKWIJZE.md, hoofdstuk Werkafspraken.",
       "",
       "Wil je iets controleren zonder browser? Draai `pnpm test` of `pnpm test:e2e`.",
-      "Wil je voor jezelf zien wat je gemaakt hebt? Dat mag, expliciet:",
-      "`STACK_ALLOW_DEV=1 pnpm dev`. Volg dan de route docs/routes/lokaal-kijken.md.",
+      "Wil je voor jezelf zien wat je gemaakt hebt? In de Claude-app gaat dat via de",
+      "preview (de knop boven het gesprek, ingesteld in .claude/launch.json); start die in",
+      "plaats van een dev-server in Bash. Buiten de Claude-app mag het expliciet:",
+      "`STACK_ALLOW_DEV=1 pnpm dev`, volgens de route docs/routes/lokaal-kijken.md.",
     ].join("\n"),
   },
   {
@@ -147,7 +154,7 @@ function weigerPad(relatief) {
       "",
       `Bestand: ${relatief}`,
       "",
-      "Wil je de nieuwste versie van dit bestand? Draai dan /stack:bijwerken: dat brengt",
+      "Wil je de nieuwste versie van dit bestand? Draai dan /stack:updaten: dat brengt",
       "de hele app naar de nieuwste template, als pull request.",
       "Wil je dat het anders werkt? Dan is dat een vraag aan Stage Two: zij passen het in",
       "de template aan en iedereen krijgt de verbetering.",
@@ -160,10 +167,22 @@ function weigerPad(relatief) {
 
 // ---------------------------------------------------------------- beoordeelTool
 
+/** De map met migraties; wie daarin schrijft, krijgt de databaseroute voorgehouden. */
+export const MIGRATIEMAP = "supabase/migrations/";
+
+export const MIGRATIE_CONTEXT = [
+  "stack: dit is een databasewijziging. Lees vóór je verder schrijft docs/routes/databasewijziging.md",
+  "in zijn geheel en loop die stappen af (stap 0: bezit deze app de database wel?), naast de",
+  "route verder-werken. Migraties zijn aanvullend, elke nieuwe tabel krijgt RLS, een grant,",
+  "policies en een test in tests/rls/, en daarna `pnpm db:types`.",
+].join("\n");
+
 /**
- * Beoordeelt één gereedschapsaanroep: `{weiger, reden}`. Zonder manifest (geen stack-repo)
- * wordt nooit geweigerd. Bash gaat langs BASH_REGELS; de padgereedschappen langs de
- * beschermde paden, tenzij env.STACK_ALLOW_POLICY_EDIT === "1".
+ * Beoordeelt één gereedschapsaanroep: `{weiger, reden, context}`. Zonder manifest (geen
+ * stack-repo) wordt nooit geweigerd. Bash gaat langs BASH_REGELS; de padgereedschappen
+ * langs de beschermde paden, tenzij env.STACK_ALLOW_POLICY_EDIT === "1". `context` is
+ * een herinnering die de agent bij een toegestane aanroep meekrijgt (nu alleen voor
+ * migraties).
  */
 export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env = {} }) {
   const toe = { weiger: false, reden: null };
@@ -185,7 +204,9 @@ export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env =
     if (env?.STACK_ALLOW_POLICY_EDIT === "1") return toe;
     const relatief = normaliseerPad(projectmap, toolInput[PAD_VELD[toolName]]);
     if (!relatief) return toe;
-    return isBeschermd(relatief, beschermdePaden(manifest)) ? weigerPad(relatief) : toe;
+    if (isBeschermd(relatief, beschermdePaden(manifest))) return weigerPad(relatief);
+    if (relatief.startsWith(MIGRATIEMAP)) return { ...toe, context: MIGRATIE_CONTEXT };
+    return toe;
   }
 
   return toe;
@@ -227,7 +248,7 @@ export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu }) {
   const melding = [
     `stack: er is een nieuwere versie van de Stage Two-template. Deze app staat op versie ${versieLokaal},`,
     `de template is op versie ${versieOpAfstand}. Zeg dit één keer aan de gebruiker, in gewone taal, en`,
-    "bied /stack:bijwerken aan om de app bij te werken (dat opent een pull request). Voer het",
+    "bied /stack:updaten aan om de app bij te werken (dat opent een pull request). Voer het",
     "niet uit zonder dat hij erom vraagt.",
   ].join("\n");
   return { melding, nieuweStempel };
