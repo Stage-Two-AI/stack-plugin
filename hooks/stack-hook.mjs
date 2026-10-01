@@ -112,14 +112,18 @@ function sessieStart(projectmap) {
 }
 
 function preToolUse(projectmap, manifest, event) {
-  const { weiger, reden } = beoordeelTool({
+  const { weiger, reden, context } = beoordeelTool({
     projectmap,
     manifest,
     toolName: event.tool_name,
     toolInput: event.tool_input,
     env: process.env,
   });
-  if (!weiger) return;
+  if (!weiger) {
+    // Alleen context, geen permissionDecision: de gewone toestemmingsvraag blijft staan.
+    if (context) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: context } }));
+    return;
+  }
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {

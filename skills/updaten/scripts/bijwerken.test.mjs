@@ -53,7 +53,8 @@ function wereld({ gh = GH_STANDAARD, tagV9 = true, app } = {}) {
 }
 
 test("argumenten en het afplakken van een login in een URL", () => {
-  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], checkout: null });
+  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], checkout: null, repo: null });
+  assert.equal(leesArgumenten(["--droogloop", "--repo", "klant/voorraad"]).repo, "klant/voorraad");
   assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--los-op", "a.yml", "template", "--los-op", "b.yml", "eigen"]).losOp, [
     { pad: "a.yml", keuze: "template" },
     { pad: "b.yml", keuze: "eigen" },
@@ -199,12 +200,70 @@ test("echte run: branch op origin met de identiteit van de klant, main onaangero
     assert.equal(create[create.indexOf("--repo") + 1], "klant/app");
     const body = create[create.indexOf("--body") + 1];
     assert.ok(body.endsWith(BEVESTIGING));
-    assert.ok(body.includes("/stack:bijwerken"));
+    assert.ok(body.includes("/stack:updaten"));
     assert.ok(!body.includes("Stage Two stack-sync"));
     // Geen commit als Stage Two in de klantrepo vanuit de skill.
     assert.ok(!git(w.klant.origin, "log", "--format=%an", "stack-bijwerken/v9").includes("Stage Two"));
   } finally {
     w.opruimen();
+  }
+});
+
+test("--repo: een andere app bijwerken zonder dat die op deze computer staat, met de globale git-naam", () => {
+  const w = wereld();
+  const leeg = tijdelijkeMap("lege-map-");
+  // Geen open app: de naam komt uit de globale git-config (hier via de omgeving).
+  const identiteit = {
+    GIT_CONFIG_COUNT: "3",
+    GIT_CONFIG_KEY_1: "user.name",
+    GIT_CONFIG_VALUE_1: "Bart Globaal",
+    GIT_CONFIG_KEY_2: "user.email",
+    GIT_CONFIG_VALUE_2: "bart@globaal.example",
+  };
+  try {
+    const mainVoor = git(w.klant.origin, "rev-parse", "main");
+    const d = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg], identiteit);
+    assert.equal(d.status, "klaar", d.reden);
+    assert.equal(d.repo, "klant/app");
+    assert.equal(d.van, 8);
+    const r = w.draai(["--json", "--werkmap", d.werkmap], identiteit);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(git(w.klant.origin, "rev-parse", "main"), mainVoor);
+    assert.equal(git(w.klant.origin, "log", "-1", "--format=%an <%ae>", "stack-bijwerken/v9"), "Bart Globaal <bart@globaal.example>");
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    assert.equal(create[create.indexOf("--repo") + 1], "klant/app");
+  } finally {
+    opruimen(leeg);
+    w.opruimen();
+  }
+});
+
+test("--repo: ongeldige naam, al bij, en zonder gh; nooit een werkmap achtergelaten", () => {
+  const w = wereld();
+  try {
+    const fout = w.draai(["--droogloop", "--repo", "geen-schuine-streep"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /eigenaar\/naam/);
+
+    // De app op GitHub op 9 zetten: dan staat hij al bij en blijft er niets achter.
+    git(w.klant.checkout, "checkout", "-q", "main");
+    writeFileSync(join(w.klant.checkout, ".claude/stack-version"), "9\n");
+    git(w.klant.checkout, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "v9");
+    git(w.klant.checkout, "push", "-q", w.klant.origin, "main");
+    const bij = w.draai(["--droogloop", "--repo", "klant/app"]);
+    assert.equal(bij.status, "bij", bij.reden);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+
+  const z = wereld({ gh: { "--version": { exit: 127 } } });
+  try {
+    const r = z.draai(["--droogloop", "--repo", "klant/app"]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /installatie/);
+  } finally {
+    z.opruimen();
   }
 });
 
@@ -365,7 +424,7 @@ test("branch op afstand met een vreemde commit: gestopt en onaangeroerd; alleen 
     assert.notEqual(tweede, eerste);
     const r = w.draai(["--droogloop"]);
     assert.equal(r.status, "gestopt");
-    assert.match(r.reden, /niet van \/stack:bijwerken/);
+    assert.match(r.reden, /niet van \/stack:updaten/);
     assert.equal(git(w.klant.origin, "rev-parse", "stack-bijwerken/v9"), tweede, "branch onaangeroerd");
     assert.deepEqual(w.werkmappen(), [d2.werkmap.split("/").pop()], "geen nieuwe werkmap; alleen die van de eerdere droogloop");
     // Ook de tweede aanroep van die eerdere droogloop mag de vreemde commit niet overschrijven.

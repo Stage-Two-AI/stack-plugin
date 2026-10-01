@@ -146,6 +146,7 @@ Zeg tot slot, in deze volgorde:
 1. Open de nieuwe map in Claude Code (Bestand, map openen). De afspraken en de bewaker
    van de werkwijze werken alleen in de map van de app zelf.
 2. Typ daar `/stack:verder-werken` en beschrijf de eerste versie uit stap 2. Bij een
-   eigen database begint dat werk met de eerste tabellen, via `/stack:databasewijziging`.
+   eigen database begint dat werk met de eerste tabellen; die route zit in
+   `/stack:verder-werken` (met `docs/routes/databasewijziging.md`).
 3. Laat Stage Two weten dat deze app bestaat (naam en link), zodat hij in het overzicht
    komt en meedoet met updates van de werkwijze.

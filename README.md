@@ -11,18 +11,22 @@ en je zelf nieuwe apps kunt beginnen.
 
 ## Wat de plugin doet
 
-- **Een begin op een nieuwe computer.** Typ `/stack:starten` en je assistent kijkt wat
+Vier commando's, en een bewaker op de achtergrond:
+
+- **Een begin op een nieuwe computer.** Typ `/stack:installatie` en je assistent kijkt wat
   er op je computer ontbreekt, installeert het, helpt je inloggen bij GitHub en vraagt
   daarna wat je wilt doen. Zie hieronder.
 - **Zelf een nieuwe app beginnen.** Typ `/stack:nieuwe-app`. Je assistent denkt eerst
   met je mee (wat moet de app doen, voor wie, en heeft hij een database nodig) en maakt
   hem daarna aan uit de nieuwste Stage Two-template, onder het GitHub-account van je
   bedrijf. Zie hieronder.
-- **De vaste routes als commando's.** Je assistent kent vier vaste manieren van werken,
-  die ook in je app beschreven staan (`docs/routes/`). Met de plugin kun je ze ook
-  aanroepen: `/stack:verder-werken` (iets toevoegen of wijzigen), `/stack:databasewijziging`,
-  `/stack:nieuwe-app-aanvragen` (alleen voor het allereerste project) en `/stack:lokaal-kijken`.
-  Je hoeft ze niet te gebruiken; gewoon vragen wat je wilt werkt ook.
+- **Verder werken aan een app.** `/stack:verder-werken` is de vaste route voor elke
+  wijziging, ook aan de database. Je hoeft het commando niet te typen: gewoon vragen wat
+  je wilt werkt ook. De route staat ook in je app beschreven (`docs/routes/`).
+- **Meekijken terwijl je bouwt.** In de Claude-app start je assistent de app vanzelf op
+  je eigen computer en laat hij hem zien in het venster naast het gesprek (de preview).
+  Hij kijkt daar zelf ook mee om zijn werk te controleren. De preview praat met de
+  testdatabase, nooit met de echte gegevens. Opleveren gaat altijd via een pull request.
 - **Een bewaker.** Een deel van de bestanden in je app is niet van jou maar van de
   gedeelde werkwijze: de automatische controles, de afspraken, de routes. Vraag je je
   assistent om daar iets in te wijzigen, dan houdt de plugin dat tegen en legt hij uit
@@ -31,9 +35,11 @@ en je zelf nieuwe apps kunt beginnen.
 - **Een melding als er een nieuwere werkwijze is.** Open je je app en heeft Stage Two de
   gedeelde werkwijze verbeterd, dan zegt je assistent dat één keer, hooguit één keer per
   dag. Meer niet: hij doet niets zonder dat jij het vraagt.
-- **Bijwerken met één commando.** Typ `/stack:bijwerken` en je assistent brengt je app
-  naar de nieuwste werkwijze, als voorstel (een pull request) dat jij bekijkt en
-  goedkeurt. Je eigen werk raakt hij nooit aan.
+- **Alles updaten met één commando.** Typ `/stack:updaten`, en je assistent werkt alles
+  bij zoals een update van je computer: de plugin, de programma's op je computer, je app
+  naar de nieuwste werkwijze en de pakketten van je app. Wat je app verandert komt als
+  voorstel (een pull request) dat jij bekijkt en goedkeurt. Daarna vraagt hij of je
+  andere apps ook mee moeten. Je eigen werk raakt hij nooit aan.
 
 Er komt geen wachtwoord, sleutel of computer van Stage Two aan te pas. Alles loopt via je
 eigen GitHub-account en je eigen computer.
@@ -72,15 +78,14 @@ Werk je in een terminal en verschijnt dat scherm niet, typ dan ook nog:
 /plugin install stack@stagetwo
 ```
 
-**Controleren dat het werkt.** Typ `/stack:` en kijk of de commando's verschijnen
-(starten, nieuwe-app, bijwerken, verder-werken, databasewijziging, lokaal-kijken en
-nieuwe-app-aanvragen). Zie je ze niet, sluit Claude Code dan en open de map opnieuw.
+**Controleren dat het werkt.** Typ `/stack:` en kijk of de vier commando's verschijnen
+(installatie, nieuwe-app, verder-werken en updaten). Zie je ze niet, sluit Claude Code dan en open de map opnieuw.
 
 **Bijwerken van de plugin zelf.** Dat gaat vanzelf: elke app die volgens deze werkwijze
 is gebouwd (template versie 11 of nieuwer) zet het automatisch bijwerken aan zodra je de
 map van de app opent. Claude Code controleert dan na het starten op de achtergrond en
-laadt een nieuwe versie bij de volgende start. Wil je het met de hand doen, vraag dan
-je assistent: "werk de Stage Two-plugin bij". Hij ververst eerst de marketplace en
+laadt een nieuwe versie bij de volgende start. Met de hand gaat het met `/stack:updaten`,
+of vraag je assistent: "werk de Stage Two-plugin bij". Hij ververst eerst de marketplace en
 werkt daarna de plugin bij; sluit Claude Code daarna af en open het opnieuw. In een
 terminal kan het ook zelf: `/plugin`, Marketplaces, `stagetwo` verversen, dan bij
 Installed de knop om bij te werken (die blijft grijs tot de marketplace ververst is).
@@ -88,7 +93,7 @@ In de desktop-app is dat paneel er niet; daar geldt de vraag aan je assistent.
 
 ## Beginnen op een nieuwe computer
 
-Typ `/stack:starten`. Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de
+Typ `/stack:installatie`. Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de
 GitHub-opdrachtregel) en installeert dat. Twee dingen om te weten:
 
 - **Windows vraagt een paar keer om toestemming.** Er verschijnt dan een venster of dit
@@ -112,7 +117,7 @@ die je daarbij niet vanzelf ziet:
 
 Tot slot zet je assistent je naam in Git, zodat later zichtbaar blijft welke wijziging
 van jou is, welke van een collega en welke van Stage Two. Daarna vraagt hij wat je wilt:
-een nieuwe app beginnen, verder werken aan een bestaande app, of een app bijwerken.
+een nieuwe app beginnen, verder werken aan een bestaande app, of alles updaten.
 
 ## Een nieuwe app beginnen
 
@@ -147,30 +152,37 @@ bedrijf nog geen beheer-repo, dan koppelt Stage Two de hosting en de database.
 Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht en doet hij mee
 met updates van de werkwijze.
 
-## Je app bijwerken
+## Alles updaten
 
 Zegt je assistent dat er een nieuwere versie van de werkwijze is, of wil je het gewoon
-weten, typ dan:
+bij de tijd houden, typ dan in de map van je app:
 
 ```text
-/stack:bijwerken
+/stack:updaten
 ```
 
-Wat er dan gebeurt:
+Wat er dan gebeurt, in deze volgorde:
 
-1. Je assistent controleert of je bent ingelogd bij GitHub en of je aan je app mag werken.
-2. Hij haalt de nieuwste werkwijze op en maakt in een tijdelijke kopie van je app een
-   voorstel klaar. Je eigen bestanden en je lopende werk blijven onaangeraakt.
-3. Hij vertelt je in een paar regels wat er verandert.
-4. Alleen als een bestand van de werkwijze bij jou anders is dan verwacht (omdat iemand
-   het ooit heeft aangepast) stelt hij een vraag: de nieuwe versie overnemen, of jouw
-   versie houden. Twijfel je? Kies "houden"; dat verandert niets aan wat nu werkt, en
-   Stage Two kan er later naar kijken.
-5. Hij zet het voorstel op GitHub als pull request, onder jouw naam, met een uitleg in
-   gewone taal.
+1. **De plugin zelf** wordt bijgewerkt. Een nieuwe versie werkt na het opnieuw openen
+   van de app.
+2. **De programma's op je computer** (Git, Node, pnpm en de GitHub-opdrachtregel) worden
+   bijgewerkt. Op Windows vraagt Windows een paar keer of dat mag; klik op **Ja**.
+3. **Je app naar de nieuwste werkwijze.** Je assistent maakt in een tijdelijke kopie van
+   je app een voorstel klaar; je eigen bestanden en je lopende werk blijven
+   onaangeraakt. Alleen als een bestand van de werkwijze bij jou anders is dan verwacht
+   (omdat iemand het ooit heeft aangepast) stelt hij een vraag: de nieuwe versie
+   overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
+   wat nu werkt, en Stage Two kan er later naar kijken.
+4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
+   staan, als een tweede, los voorstel. Grote sprongen naar een nieuwe hoofdversie
+   noemt hij alleen; die pakt Stage Two op.
+5. **Je andere apps.** Je assistent laat zien welke andere apps van je bedrijf nog op
+   een oudere werkwijze staan, en vraagt welke je nu wilt bijwerken. Die hoeven niet op
+   je computer te staan. Elke gekozen app krijgt zijn eigen voorstellen.
 
-Daarna is het aan jou, precies zoals bij elke andere wijziging: open de pull request,
-wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
+Elk voorstel staat op GitHub als pull request, onder jouw naam, met een uitleg in
+gewone taal. Daarna is het aan jou, precies zoals bij elke andere wijziging: open de
+pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
 voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
 controle niet uit.
 
@@ -183,8 +195,10 @@ controle niet uit.
 | "je hebt geen schrijfrecht" | Je account mag niet in deze app schrijven | Vraag de eigenaar van de app je toe te voegen |
 | "installeer pnpm" | `pnpm` ontbreekt op je computer | Vraag Stage Two, of installeer het zoals bij de start is uitgelegd |
 | "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of vraag Stage Two |
-| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stack:bijwerken`. Wil je het anders: vraag het Stage Two |
-| Na installeren zegt `/stack:starten` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
+| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stack:updaten`. Wil je het anders: vraag het Stage Two |
+| "er staat al een voorstel voor de afhankelijkheden open" | De pakketten-PR van een vorige keer is nog niet gemerged | Merge die eerst (als de controles groen zijn), of sluit hem, en typ dan opnieuw `/stack:updaten` |
+| De preview toont geen gegevens | Deze app heeft nog geen testdatabase ingesteld | Vraag Stage Two; het opleveren via de pull request werkt gewoon |
+| Na installeren zegt `/stack:installatie` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
 | `/plugin marketplace add` lukt niet op Windows | Git ontbreekt | Git installeren zoals onder "Installeren", de app afsluiten via het systeemvak en opnieuw openen |
 | `gh auth login` stopt halverwege | Ctrl+C gedrukt om de code te kopiëren; dat breekt het af | Opnieuw `gh auth login` typen en de nieuwe code onthouden in plaats van kopiëren |
 | "de repo bestaat al" bij `/stack:nieuwe-app` | Er is al een app met die naam | Kies een andere naam |
@@ -202,7 +216,8 @@ Alles hieronder is voor wie de plugin en de template onderhoudt.
 ```text
 .claude-plugin/    plugin.json (naam stack, versie) en marketplace.json (naam stagetwo)
 hooks/             de bewaker (PreToolUse) en de melding bij sessiestart (SessionStart)
-skills/            de zeven skills; met een script: bijwerken (bijwerken.mjs), starten
+skills/            de vier skills; met een script: updaten (bijwerken.mjs voor de
+                   template, afhankelijkheden.mjs, overzicht.mjs), installatie
                    (controle.sh, shell omdat Node kan ontbreken) en nieuwe-app
                    (nieuwe-app.mjs: aanmaken, en --inrichten start de workflow in de
                    beheer-repo van de klant; plus ruleset.json voor main)
@@ -224,12 +239,24 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
   publieke template (één anonieme `git ls-remote`, drie seconden), met een dagstempel
   per repo in `${CLAUDE_PLUGIN_DATA}`.
-- `/stack:bijwerken` draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
+- Het templatedeel van `/stack:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
   kloon, kern toepassen, resultaat als JSON) en `--werkmap <map>` (keuzes toepassen,
   committen met de identiteit van de gebruiker, pushen als de boom verschilt, PR openen
   of bijwerken). Elke commit draagt de trailer `Stack-bijwerken: v<n>`; een branch met
   een commit zonder die trailer wordt nooit opnieuw opgebouwd. De tijdelijke map
-  verdwijnt na de tweede aanroep en bij elke mislukking.
+  verdwijnt na de tweede aanroep en bij elke mislukking. Met `--repo eigenaar/naam`
+  werkt het een app bij die niet op de computer staat (kloon via de gh-login). De
+  branchnaam `stack-bijwerken/v<n>` en de trailer blijven zo heten: de beheerde run en
+  de bestaande pull requests van klanten leunen erop.
+- `afhankelijkheden.mjs`: `pnpm update --no-save` in een tijdelijke kloon (alleen het
+  lockfile verandert, de grenzen in package.json zijn deels van de template), PR op de
+  vaste branch `stack-afhankelijkheden`; staat die PR al open, dan stopt hij. Noemt de
+  hoofdversies uit `pnpm outdated` en de open Dependabot-PR's.
+- `overzicht.mjs`: de apps uit de template met schrijfrecht, per eigenaar via
+  `gh repo list` en de inhoud van `.claude/stack-version`; wijzigt niets.
+- De hook geeft bij schrijven in `supabase/migrations/` de databaseroute mee als
+  `additionalContext` (geen weigering, de gewone toestemmingsvraag blijft). Dat
+  vervangt de vroegere skill databasewijziging.
 - De kern (`lib/toepassen.mjs`) controleert zichzelf: raakt er iets buiten het manifest,
   dan stopt hij. Een eigen bestand van de klant wordt nooit stil overschreven of
   verwijderd; het komt in `overgeslagen` met een reden en een keuze.
@@ -244,11 +271,11 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
    Claude-app. Plugin installeren zoals hierboven onder "Installeren" (desktop-app: één
    commando, vertrouwen bevestigen, plusje). Getest 22-09-2026 en, van een kale VM af,
    01-10-2026 op Windows in de desktop-app.
-2. `/stack:starten` samen doorlopen: installaties, de terminalstap voor `gh auth login`,
+2. `/stack:installatie` samen doorlopen: installaties, de terminalstap voor `gh auth login`,
    de git-identiteit. Leg vooraf uit: de UAC-vensters, dat de code van `gh auth login`
    overgetypt wordt (Ctrl+C breekt af), en dat een herstart via het systeemvak gaat en
    het gesprek daarna via de linkerzijbalk terugkomt ("ga verder").
-3. Controleer dat de zeven skills verschijnen als `/stack:<naam>`.
+3. Controleer dat de vier skills verschijnen als `/stack:<naam>`.
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
 5. Controleer dat de app op template versie 11 of nieuwer staat: dan werkt de plugin
@@ -258,7 +285,7 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
    daar via de meegeleverde opdrachtregel, en de assistent kan dat zelf doen:
    `claude plugin marketplace update stagetwo` en dan `claude plugin update stack@stagetwo`,
    daarna de app opnieuw openen.
-6. Loop de melding en `/stack:bijwerken` één keer samen door, en `/stack:nieuwe-app` als
+6. Loop de melding en `/stack:updaten` één keer samen door, en `/stack:nieuwe-app` als
    de klant zelf apps gaat starten. Vercel en Supabase koppelt de workflow "App
    inrichten" in `<klantorg>/stack-beheer` (recept: Stage-Two-AI/stack-beheer); die
    toegang komt nooit op de computer van de klant (besluit 22-09-2026).

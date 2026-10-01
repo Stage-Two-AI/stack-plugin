@@ -321,8 +321,8 @@ function slaap(ms) {
 export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinuten = 30 } = {}) {
   const fout = controleerArgumenten(arg);
   if (fout) return { status: "mislukt", reden: fout };
-  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack:starten" };
-  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack:starten)" };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack:installatie" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack:installatie)" };
 
   const beheer = `${arg.eigenaar}/${BEHEER_REPO}`;
   if (!isOrganisatie(arg.eigenaar) || !repoBestaat(beheer)) {
@@ -403,11 +403,11 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
     try {
       sh(cli, ["--version"], { shell: cli === "pnpm" && process.platform === "win32" });
     } catch {
-      return { status: "mislukt", reden: `${cli} staat niet op deze computer; draai eerst /stack:starten` };
+      return { status: "mislukt", reden: `${cli} staat niet op deze computer; draai eerst /stack:installatie` };
     }
   }
-  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack:starten" };
-  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack:starten)" };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack:installatie" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack:installatie)" };
 
   const gebruiker = login();
   const org = isOrganisatie(arg.eigenaar);
