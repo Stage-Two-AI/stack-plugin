@@ -40,8 +40,23 @@ eigen GitHub-account en je eigen computer.
 
 ## Installeren
 
-Je hebt alleen Claude Code nodig: het tabblad **Code** in de Claude-app op je computer,
-of Claude Code in een terminal. Open een map (leeg mag) en typ in het chatvenster:
+Je hebt Claude Code nodig: het tabblad **Code** in de Claude-app op je computer, of
+Claude Code in een terminal. Op Windows heb je daarnaast **Git** nodig, en dat moet er
+eerst zijn: zonder Git kan de plugin niet worden toegevoegd.
+
+**Op Windows, vóór je de Claude-app installeert:** druk op de Windows-toets, typ
+`PowerShell`, open het en plak deze regel:
+
+```powershell
+winget install -e --id Git.Git
+```
+
+Klik op **Ja** als Windows vraagt of dit programma wijzigingen mag aanbrengen. Doe dit
+vóór de Claude-app, dan hoeft die daarna niet opnieuw te starten. Op een Mac hoeft dit
+niet.
+
+Installeer daarna de Claude-app (claude.ai/download) en log in. Open in het tabblad
+**Code** een map (leeg mag, bijvoorbeeld `Documenten\Apps`) en typ in het chatvenster:
 
 ```text
 /plugin marketplace add Stage-Two-AI/stack-plugin
@@ -79,12 +94,19 @@ GitHub-opdrachtregel) en installeert dat. Twee dingen om te weten:
   worden gevraagd.
 - **Inloggen bij GitHub doe je zelf, één keer, in een terminal.** Je assistent legt het
   precies uit: je opent Git Bash (Windows) of Terminal (Mac), typt `gh auth login`,
-  kiest GitHub.com, HTTPS, Yes en "Login with a web browser", en plakt een code in de
-  browser. Daarna zeg je "klaar" in het chatvenster.
+  kiest GitHub.com, HTTPS, Yes en "Login with a web browser", en typt een code over in
+  de browser. **Onthoud die code; kopieer hem niet:** Ctrl+C breekt in dat venster het
+  inloggen af. Daarna zeg je "klaar" in het chatvenster.
 
 Soms kent Claude Code een net geïnstalleerd programma nog niet. Je assistent vraagt je
-dan Claude Code af te sluiten en opnieuw te openen. Dat is normaal en gebeurt maar één
-keer.
+dan de app opnieuw te starten. Dat is normaal en gebeurt maar één keer. Twee dingen
+die je daarbij niet vanzelf ziet:
+
+- **Het kruisje sluit de app niet af.** Op Windows blijft hij rechtsonder in het
+  systeemvak draaien. Klik daar op het pijltje **^**, klik met de rechtermuisknop op het
+  Claude-icoon en kies **Afsluiten**. Open de app daarna opnieuw.
+- **Je gesprek opent niet vanzelf.** Klik het aan in de linkerzijbalk en typ
+  **ga verder**.
 
 Tot slot zet je assistent je naam in Git, zodat later zichtbaar blijft welke wijziging
 van jou is, welke van een collega en welke van Stage Two. Daarna vraagt hij wat je wilt:
@@ -160,7 +182,9 @@ controle niet uit.
 | "installeer pnpm" | `pnpm` ontbreekt op je computer | Vraag Stage Two, of installeer het zoals bij de start is uitgelegd |
 | "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of vraag Stage Two |
 | Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stack:bijwerken`. Wil je het anders: vraag het Stage Two |
-| Na installeren zegt `/stack:starten` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | Claude Code afsluiten, opnieuw openen, weer `/stack:starten` |
+| Na installeren zegt `/stack:starten` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
+| `/plugin marketplace add` lukt niet op Windows | Git ontbreekt | Git installeren zoals onder "Installeren", de app afsluiten via het systeemvak en opnieuw openen |
+| `gh auth login` stopt halverwege | Ctrl+C gedrukt om de code te kopiëren; dat breekt het af | Opnieuw `gh auth login` typen en de nieuwe code onthouden in plaats van kopiëren |
 | "de repo bestaat al" bij `/stack:nieuwe-app` | Er is al een app met die naam | Kies een andere naam |
 | "main is nog niet beschermd" na `/stack:nieuwe-app` | Het GitHub-account staat op het gratis plan | Vraag Stage Two; de app werkt, alleen de bescherming ontbreekt nog |
 
@@ -214,10 +238,14 @@ Vooraf: de template is publiek, de tag `stack-v<n>` van de nieuwste versie staat
 accounts van de klant staan (GitHub-organisatie op een betaald plan, Vercel, Supabase als
 er een app met eigen database komt; BOOTSTRAP.md in Stack).
 
-1. Plugin installeren zoals hierboven onder "Installeren" (desktop-app: één commando,
-   vertrouwen bevestigen, plusje). Getest 22-09-2026 op Windows in de desktop-app.
+1. Op Windows eerst Git (`winget install -e --id Git.Git` in PowerShell), dán de
+   Claude-app. Plugin installeren zoals hierboven onder "Installeren" (desktop-app: één
+   commando, vertrouwen bevestigen, plusje). Getest 22-09-2026 en, van een kale VM af,
+   01-10-2026 op Windows in de desktop-app.
 2. `/stack:starten` samen doorlopen: installaties, de terminalstap voor `gh auth login`,
-   de git-identiteit. Leg de UAC-vensters vooraf uit.
+   de git-identiteit. Leg vooraf uit: de UAC-vensters, dat de code van `gh auth login`
+   overgetypt wordt (Ctrl+C breekt af), en dat een herstart via het systeemvak gaat en
+   het gesprek daarna via de linkerzijbalk terugkomt ("ga verder").
 3. Controleer dat de zeven skills verschijnen als `/stack:<naam>`.
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
