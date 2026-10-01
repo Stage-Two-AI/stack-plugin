@@ -31,7 +31,10 @@ wachtwoord van de computer worden gevraagd.
 
 Gebruik alleen deze commando's, in deze volgorde, en alleen voor wat ontbreekt:
 
-Windows (`os=windows`, `winget=ja`):
+Windows (`os=windows`, `winget=ja`). Git staat er normaal al: zonder Git kan de plugin
+op Windows niet worden toegevoegd, dus de gebruiker heeft het vóór de Claude-app
+geïnstalleerd (README, "Installeren"). De regel blijft hier voor het geval het toch
+ontbreekt:
 
 ```sh
 winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
@@ -51,8 +54,18 @@ Two, en zeg welk onderdeel ontbreekt. Verzin geen andere installatieweg.
 
 Draai daarna stap 1 opnieuw. Meldt de controle iets nog steeds als `ontbreekt` terwijl
 de installatie is gelukt, dan kent deze sessie het nieuwe programma nog niet. Zeg dan
-dat de gebruiker Claude Code even moet afsluiten en opnieuw openen, en daarna weer
-`/stack:starten` typt. Dat is normaal en gebeurt maar één keer.
+dat de app opnieuw moet starten, dat dit normaal is en maar één keer gebeurt, en geef
+deze uitleg letterlijk genoeg om te volgen:
+
+1. Sluit de Claude-app **helemaal** af. Op Windows is het kruisje niet genoeg: de app
+   blijft dan rechtsonder in het systeemvak draaien. Klik daar op het pijltje **^**,
+   klik met de rechtermuisknop op het Claude-icoon en kies **Afsluiten**. Op macOS:
+   cmd+Q.
+2. Open de Claude-app opnieuw.
+3. Dit gesprek opent niet vanzelf. Klik het aan in de **linkerzijbalk** en typ daar
+   **ga verder**.
+
+Zegt de gebruiker daarna "ga verder", begin dan weer bij stap 1.
 
 ## Stap 3: inloggen bij GitHub (doet de gebruiker zelf, in een terminal)
 
@@ -65,8 +78,11 @@ uitleg, letterlijk genoeg om te volgen:
 2. Typ daar `gh auth login` en druk op Enter.
 3. Beantwoord de vragen zo: **GitHub.com**, dan **HTTPS**, dan **Yes** (Git mag je
    inloggegevens gebruiken), dan **Login with a web browser**.
-4. Er verschijnt een code van acht tekens. Onthoud of kopieer die, druk op Enter, en
-   plak de code in de browserpagina die opent. Klik op **Authorize**.
+4. Er verschijnt een code van acht tekens, zoals `ABCD-1234`. **Onthoud die; kopieer
+   hem niet.** Ctrl+C betekent in dit venster "stoppen" en breekt het inloggen af.
+   Druk op Enter en typ de code over in de browserpagina die opent. Klik op
+   **Authorize**. Is het inloggen toch afgebroken, typ dan gewoon opnieuw
+   `gh auth login`: je krijgt een nieuwe code.
 5. Kom terug naar dit venster en zeg "klaar".
 
 Zegt de gebruiker "klaar", draai dan stap 1 opnieuw en controleer dat `gh_ingelogd`
