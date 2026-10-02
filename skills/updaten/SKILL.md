@@ -18,14 +18,24 @@ en 4 over en ga na deel 2 naar deel 5.
 
 ## Deel 1: de plugin zelf
 
+Eerst zorgen dat de plugin zichzelf voortaan bijwerkt (dit staat bij klanten van vóór
+plugin 2.1.0 nog niet aan, en de desktop-app zet het standaard uit):
+
+```sh
+node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json
+```
+
+`gezet` of `al-goed` is goed; bij `mislukt` geef je `reden` door en ga je door. Werk de
+plugin daarna nu meteen bij:
+
 ```sh
 claude plugin marketplace update stagetwo && claude plugin update stack@stagetwo
 ```
 
 Lukt dat (ook "already up to date" is goed), onthoud dan of er een nieuwe versie is
 binnengekomen: die werkt pas na het opnieuw openen van de app (zie deel 6). Bestaat het
-commando `claude` hier niet, sla dit deel dan over; in een app op template versie 11 of
-nieuwer werkt de plugin zichzelf ook bij bij het starten.
+commando `claude` hier niet, sla dit dan over: met de instelling hierboven werkt de
+plugin zichzelf bij, kort nadat de app de volgende keer gestart is.
 
 ## Deel 2: de programma's op deze computer
 

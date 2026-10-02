@@ -103,7 +103,26 @@ staat, en laat bestaande instellingen met rust. Zeg de gebruiker welke naam en w
 adres nu gebruikt worden (`git_identiteit=...`). Wil hij een andere naam, pas die
 dan aan met `git config --global user.name "<naam>"` en zeg dat je dat hebt gedaan.
 
-## Stap 5: wat wil je doen?
+## Stap 5: automatisch bijwerken aanzetten
+
+Zeg in één regel dat je zorgt dat de Stage Two-plugin zichzelf voortaan bijwerkt, zodat
+de gebruiker daar nooit meer naar hoeft te kijken. Draai:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/automatisch-bijwerken.mjs" --json
+```
+
+- `gezet` of `al-goed`: klaar. Zeg niets over de details; het werkt vanaf de volgende
+  keer dat de app start.
+- `mislukt`: geef `reden` door en ga door met stap 6. De plugin werkt gewoon; alleen het
+  vanzelf bijwerken ontbreekt, en `/stack:updaten` doet het dan met de hand.
+
+Achtergrond, niet voor de gebruiker: de desktop-app start Claude Code met
+`DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins uit. Het script zet in
+de instellingen van de gebruiker `FORCE_AUTOUPDATE_PLUGINS=1` en `autoUpdate` voor de
+marketplace `stagetwo`, en laat de rest van dat bestand staan.
+
+## Stap 6: wat wil je doen?
 
 Alles staat klaar. Vraag nu, met deze drie keuzes:
 
