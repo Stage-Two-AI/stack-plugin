@@ -81,15 +81,15 @@ Werk je in een terminal en verschijnt dat scherm niet, typ dan ook nog:
 **Controleren dat het werkt.** Typ `/stack:` en kijk of de vier commando's verschijnen
 (installatie, nieuwe-app, verder-werken en updaten). Zie je ze niet, sluit Claude Code dan en open de map opnieuw.
 
-**Bijwerken van de plugin zelf.** Dat gaat vanzelf: elke app die volgens deze werkwijze
-is gebouwd (template versie 11 of nieuwer) zet het automatisch bijwerken aan zodra je de
-map van de app opent. Claude Code controleert dan na het starten op de achtergrond en
-laadt een nieuwe versie bij de volgende start. Met de hand gaat het met `/stack:updaten`,
-of vraag je assistent: "werk de Stage Two-plugin bij". Hij ververst eerst de marketplace en
-werkt daarna de plugin bij; sluit Claude Code daarna af en open het opnieuw. In een
-terminal kan het ook zelf: `/plugin`, Marketplaces, `stagetwo` verversen, dan bij
-Installed de knop om bij te werken (die blijft grijs tot de marketplace ververst is).
-In de desktop-app is dat paneel er niet; daar geldt de vraag aan je assistent.
+**Bijwerken van de plugin zelf.** Dat gaat vanzelf, zonder dat je iets hoeft te typen.
+`/stack:installatie` zet het aan; het werkt in elke map. Kort nadat je de Claude-app
+hebt geopend en je eerste bericht hebt gestuurd, kijkt Claude Code op de achtergrond of
+er een nieuwe versie is en haalt die binnen. Je hoeft de app daarvoor niet open te
+houden of opnieuw te starten: de nieuwe versie verschijnt vanzelf.
+
+Heb je de plugin geïnstalleerd vóór versie 2.1.0? Typ dan één keer `/stack:updaten`. Dat
+zet het vanzelf bijwerken alsnog aan en haalt meteen de nieuwste versie op. Daarna hoef
+je er niet meer naar te kijken.
 
 ## Beginnen op een nieuwe computer
 
@@ -278,13 +278,16 @@ er een app met eigen database komt; BOOTSTRAP.md in Stack).
 3. Controleer dat de vier skills verschijnen als `/stack:<naam>`.
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
-5. Controleer dat de app op template versie 11 of nieuwer staat: dan werkt de plugin
-   zichzelf bij via `.claude/settings.json` van de app, zodra de map van de app open
-   staat (in een lege map gebeurt er niets). In de desktop-app is er geen `/plugin`-paneel
-   en geen schakelaar voor automatisch bijwerken (getest 22-09-2026); met de hand gaat het
-   daar via de meegeleverde opdrachtregel, en de assistent kan dat zelf doen:
-   `claude plugin marketplace update stagetwo` en dan `claude plugin update stack@stagetwo`,
-   daarna de app opnieuw openen.
+5. Controleer dat de plugin zichzelf bijwerkt. `/stack:installatie` (stap 5) zet dat op
+   gebruikersniveau aan, in `~/.claude/settings.json`: `env.FORCE_AUTOUPDATE_PLUGINS = "1"`
+   en `extraKnownMarketplaces.stagetwo.autoUpdate = true`. Beide zijn nodig. De desktop-app
+   start Claude Code met `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins
+   uit; een marketplace die de klant zelf toevoegt, krijgt bovendien geen `autoUpdate`
+   (standaard uit). De `autoUpdate` in `.claude/settings.json` van een app (template v11)
+   is daarom in de desktop-app niet genoeg. Vastgesteld en bewezen op 02-10-2026 op de
+   Windows-VM: na de instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder
+   nog een herstart. Controle: vraag de assistent `~/.claude/plugins/installed_plugins.json`
+   te tonen. Klanten van vóór 2.1.0: één keer `/stack:updaten`.
 6. Loop de melding en `/stack:updaten` één keer samen door, en `/stack:nieuwe-app` als
    de klant zelf apps gaat starten. Vercel en Supabase koppelt de workflow "App
    inrichten" in `<klantorg>/stack-beheer` (recept: Stage-Two-AI/stack-beheer); die
